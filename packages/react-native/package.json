@@ -1,0 +1,56 @@
+{
+  "name": "@elevenlabs/react-native",
+  "version": "1.2.0",
+  "description": "ElevenLabs React Native SDK for the Agents Platform",
+  "type": "module",
+  "exports": {
+    ".": {
+      "browser": "./dist/index.js",
+      "react-native": "./dist/index.react-native.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "generate-version": "printf \"// This file is auto-generated during build\\nexport const PACKAGE_VERSION = \\\"%s\\\";\\n\" \"$npm_package_version\" > src/version.ts",
+    "build": "tsc --build tsconfig.build.json",
+    "dev": "tsc --build tsconfig.build.json --watch",
+    "clean": "tsc --build tsconfig.build.json --clean && rm -rf ./dist",
+    "check-types": "tsc --noEmit --skipLibCheck",
+    "lint:es": "pnpm exec eslint .",
+    "lint:prettier": "prettier 'src/**/*.ts' --check"
+  },
+  "keywords": [
+    "elevenlabs",
+    "react-native",
+    "conversational-ai",
+    "webrtc",
+    "voice",
+    "ai"
+  ],
+  "author": "ElevenLabs",
+  "license": "MIT",
+  "peerDependencies": {
+    "@livekit/react-native": "^2.9.2",
+    "@livekit/react-native-webrtc": "^137.0.2",
+    "react": ">=17.0.0",
+    "react-native": ">=0.70.0"
+  },
+  "dependencies": {
+    "@elevenlabs/client": "workspace:*",
+    "@elevenlabs/react": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "eslint": "^10.3.0",
+    "typescript": "^5.5.4"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/elevenlabs/packages.git",
+    "directory": "packages/react-native"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "next"
+  }
+}

@@ -1,0 +1,455 @@
+@import url(https://fonts.googleapis.com/css2?family=Inter:wght@400,500&display=swap);
+
+@config "../../tailwind.config.js";
+@import "tailwindcss";
+
+.dev-host,
+:host {
+  pointer-events: none;
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+
+  @apply text-base-primary text-md;
+  font-family:
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    Segoe UI,
+    Roboto,
+    Oxygen,
+    Ubuntu,
+    Cantarell,
+    "Fira Sans",
+    "Droid Sans",
+    "Helvetica Neue",
+    sans-serif;
+
+  scrollbar-color: #e5e7eb transparent;
+}
+
+@layer utilities {
+  .overlay {
+    position: absolute;
+    inset: var(--el-overlay-padding);
+    /* Make sure the widget doesn't shift when opening dropdowns */
+    right: calc(
+      var(--el-overlay-padding) + var(--removed-body-scroll-bar-size, 0px)
+    );
+  }
+
+  .focus-ring {
+    @apply ring-accent ring-offset-base ring-offset-2 focus-visible:ring-2 focus-visible:outline-none;
+  }
+
+  [data-variant="compact"] {
+    &.sheet {
+      @apply rounded-sheet w-full max-w-[400px] h-[calc(100%-32px)] max-h-[700px];
+    }
+  }
+
+  [data-variant="expanded"] {
+    &.sheet {
+      @apply rounded-sheet w-full max-w-[600px] h-full max-h-[calc(100%-32px)];
+    }
+  }
+
+  [data-variant="fullscreen"] {
+    &.sheet {
+      @apply rounded-none w-full max-w-dvw h-full max-h-dvh bottom-0 pb-6;
+      /* Bleed to fill the entire viewport */
+      margin: calc(-1 * var(--el-overlay-padding));
+      width: calc(100% + 2 * var(--el-overlay-padding));
+      height: calc(100% + 2 * var(--el-overlay-padding));
+    }
+  }
+
+  .sheet-surface {
+    background-color: var(--el-base);
+    background-image: linear-gradient(
+      180deg,
+      var(--el-accent) 0%,
+      var(--el-base) 72%
+    );
+  }
+
+  @supports (color: color-mix(in srgb, white, black)) {
+    .sheet-surface {
+      background-image: linear-gradient(
+        180deg,
+        var(--el-accent) 0%,
+        color-mix(in srgb, var(--el-accent) 72%, var(--el-base) 28%) 18%,
+        color-mix(in srgb, var(--el-accent) 24%, var(--el-base) 76%) 42%,
+        var(--el-base) 72%
+      );
+    }
+  }
+
+  .sheet-header-on-accent {
+    --el-base: color-mix(
+      in srgb,
+      var(--el-accent) 86%,
+      var(--el-accent-primary) 14%
+    );
+    --el-base-hover: color-mix(
+      in srgb,
+      var(--el-accent) 78%,
+      var(--el-accent-primary) 22%
+    );
+    --el-base-active: color-mix(
+      in srgb,
+      var(--el-accent) 70%,
+      var(--el-accent-primary) 30%
+    );
+    --el-base-border: color-mix(
+      in srgb,
+      var(--el-accent-primary) 66%,
+      var(--el-accent) 34%
+    );
+    --el-base-primary: var(--el-accent-primary);
+    --el-base-subtle: color-mix(
+      in srgb,
+      var(--el-accent-primary) 68%,
+      var(--el-accent) 32%
+    );
+  }
+
+  .animate-text {
+    background-image: linear-gradient(
+      75deg,
+      var(--el-base-primary),
+      var(--el-base-subtle),
+      var(--el-base-primary),
+      var(--el-base-subtle)
+    );
+    background-size: 300% 100%;
+    background-clip: text;
+    color: transparent;
+
+    animation: TextAnimation 2s linear infinite;
+  }
+
+  @keyframes TextAnimation {
+    0% {
+      background-position: 0 0;
+    }
+    100% {
+      background-position: 100% 0;
+    }
+  }
+
+  @keyframes spin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .animate-spin {
+    animation: spin 1s linear infinite;
+  }
+
+  .status-pill {
+    background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--el-base) 88%, var(--el-base-primary) 12%) 0%,
+      color-mix(in srgb, var(--el-base-active) 78%, var(--el-base) 22%) 100%
+    );
+    border: 1px solid
+      color-mix(in srgb, var(--el-base-border) 80%, var(--el-base-primary) 20%);
+    box-shadow:
+      inset 0 1px 0 color-mix(in srgb, var(--el-base) 82%, transparent),
+      0 1px 2px color-mix(in srgb, var(--el-base-primary) 8%, transparent);
+    isolation: isolate;
+  }
+
+  .status-pill::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    width: 42%;
+    border-radius: inherit;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      color-mix(in srgb, var(--el-accent-primary) 72%, transparent) 48%,
+      transparent 100%
+    );
+    opacity: 0.9;
+    transform: translateX(-160%);
+    animation: StatusPillShimmer 3.1s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .status-pill > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  @keyframes StatusPillShimmer {
+    0% {
+      transform: translateX(-160%);
+    }
+    58% {
+      transform: translateX(320%);
+    }
+    100% {
+      transform: translateX(320%);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .status-pill::before {
+      animation: none;
+      opacity: 0;
+    }
+  }
+
+  .terms h6 {
+    @apply text-base-primary font-medium text-xs;
+  }
+
+  .terms h5 {
+    @apply text-base-primary font-medium text-sm;
+  }
+
+  .terms h4 {
+    @apply text-base-primary font-medium text-md;
+  }
+
+  .terms h3 {
+    @apply text-base-primary font-medium text-lg;
+  }
+
+  .terms h2 {
+    @apply text-base-primary font-medium text-xl;
+  }
+
+  .terms h1 {
+    @apply text-base-primary font-medium text-2xl;
+  }
+}
+
+.markdown {
+  /* for better non-latin text rendering https://developer.chrome.com/blog/css-i18n-features */
+  text-autospace: normal;
+  text-spacing-trim: trim-start;
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    word-break: auto-phrase;
+  }
+}
+
+/* Syntax highlighting token styles - GitHub Light theme */
+.tok-comment,
+.tok-meta {
+  color: #6a737d;
+}
+
+.tok-keyword {
+  color: #d73a49;
+}
+
+.tok-atom,
+.tok-bool,
+.tok-literal,
+.tok-number {
+  color: #005cc5;
+}
+
+.tok-string {
+  color: #032f62;
+}
+
+.tok-string2 {
+  color: #032f62;
+}
+
+.tok-variableName {
+  color: #24292e;
+}
+
+.tok-variableName.tok-definition {
+  color: #6f42c1;
+}
+
+.tok-variableName.tok-local {
+  color: #24292e;
+}
+
+.tok-variableName2,
+.tok-macroName {
+  color: #6f42c1;
+}
+
+.tok-typeName,
+.tok-namespace {
+  color: #6f42c1;
+}
+
+.tok-className {
+  color: #6f42c1;
+}
+
+.tok-propertyName {
+  color: #24292e;
+}
+
+.tok-propertyName.tok-definition {
+  color: #005cc5;
+}
+
+.tok-labelName {
+  color: #22863a;
+}
+
+.tok-url,
+.tok-link {
+  text-decoration: underline;
+  color: #032f62;
+}
+
+.tok-operator {
+  color: #d73a49;
+}
+
+.tok-punctuation {
+  color: #24292e;
+}
+
+.tok-invalid {
+  color: #b31d28;
+}
+
+.tok-deleted {
+  color: #b31d28;
+  background-color: #ffeef0;
+}
+
+.tok-inserted {
+  color: #22863a;
+  background-color: #f0fff4;
+}
+
+/* Markdown-specific tokens */
+.tok-heading {
+  font-weight: bold;
+  color: #005cc5;
+}
+
+.tok-emphasis {
+  font-style: italic;
+  color: #24292e;
+}
+
+.tok-strong {
+  font-weight: bold;
+  color: #24292e;
+}
+
+.tok-strikethrough {
+  text-decoration: line-through;
+}
+
+.tok-monospace {
+  color: #005cc5;
+}
+
+.tok-processingInstruction {
+  color: #6a737d;
+}
+
+/* GitHub Dark theme for syntax highlighting styles */
+[data-syntax-theme="dark"] {
+  .tok-comment,
+  .tok-meta {
+    color: #6a737d;
+  }
+
+  .tok-keyword {
+    color: #f97583;
+  }
+
+  .tok-atom,
+  .tok-bool,
+  .tok-literal,
+  .tok-number,
+  .tok-propertyName.tok-definition {
+    color: #79b8ff;
+  }
+
+  .tok-string,
+  .tok-string2 {
+    color: #9ecbff;
+  }
+
+  .tok-url,
+  .tok-link {
+    color: #dbedff;
+  }
+
+  .tok-variableName,
+  .tok-variableName.tok-local,
+  .tok-propertyName {
+    color: #e1e4e8;
+  }
+
+  .tok-emphasis,
+  .tok-strong {
+    color: #e1e4e8;
+  }
+
+  .tok-variableName.tok-definition,
+  .tok-variableName2,
+  .tok-macroName,
+  .tok-typeName,
+  .tok-namespace,
+  .tok-className {
+    color: #b392f0;
+  }
+
+  .tok-labelName {
+    color: #85e89d;
+  }
+
+  .tok-invalid {
+    color: #fdaeb7;
+  }
+
+  .tok-deleted {
+    color: #fdaeb7;
+    background-color: #86181d;
+  }
+
+  .tok-inserted {
+    color: #85e89d;
+    background-color: #144620;
+  }
+
+  .tok-heading {
+    color: #79b8ff;
+  }
+
+  .tok-operator {
+    color: #f97583;
+  }
+
+  .tok-punctuation {
+    color: #e1e4e8;
+  }
+
+  .tok-monospace {
+    color: #79b8ff;
+  }
+
+  .tok-processingInstruction {
+    color: #6a737d;
+  }
+}

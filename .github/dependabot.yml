@@ -1,0 +1,56 @@
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      remark-cjk-friendly:
+        patterns:
+          - "remark-cjk-friendly"
+          - "remark-cjk-friendly-gfm-strikethrough"
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+          - "expo"
+          - "expo-*"
+          - "@expo/*"
+          - "@config-plugins/*"
+          - "react-native"
+          - "react-native-*"
+      eslint:
+        patterns:
+          - "@eslint/*"
+          - "@typescript-eslint/*"
+          - "eslint"
+          - "eslint-*"
+          - "typescript-eslint"
+      tailwindcss:
+        patterns:
+          - "tailwindcss"
+          - "@tailwindcss/*"
+      lezer:
+        patterns:
+          - "@lezer/*"
+      livekit:
+        patterns:
+          - "@livekit/*"
+          - "livekit-client"
+      tanstack-start-router:
+        patterns:
+          - "@tanstack/react-router"
+          - "@tanstack/react-router-*"
+          - "@tanstack/react-start"
+          - "@tanstack/react-start-*"
+          - "@tanstack/router-*"
+          - "@tanstack/start-*"
+      vite:
+        patterns:
+          - "@vitejs/*"
+          - "@vitest/*"
+          - "vite"
+          - "vite-*"
+          - "vitest"

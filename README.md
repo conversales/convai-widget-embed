@@ -1,19 +1,199 @@
-# convai-widget-embed
+![hero](assets/hero.png)
 
-Starter repository for a customized conversational AI widget embed package.
+# ElevenAgents SDK
 
-## Current goal
+Build multimodal agents with [ElevenAgents](https://elevenlabs.io/docs/eleven-agents/overview). Our SDKs provide seamless integration with popular JavaScript/TypeScript frameworks, enabling you to create multimodal AI agents.
 
-Create a safe fork path that keeps upstream widget behavior intact while allowing UI, branding, layout, and alignment customization.
+## Installation
 
-## Initial scope
+```bash
+npm install @elevenlabs/react
+```
 
-- Keep logic changes out of the first phase
-- Focus on wrapper-level defaults and visual configuration
-- Add a local demo and upstream integration in the next phase
+## Usage
 
-## Scripts
+```typescript
+import { useConversation } from "@elevenlabs/react";
 
-- `npm run build`
-- `npm run check-types`
-- `npm run dev`
+const conversation = useConversation({
+  agentId: "your-agent-id",
+});
+
+// Start conversation
+conversation.startSession();
+```
+
+## Overview
+
+The ElevenAgents SDKs provide a unified interface for integrating multimodal AI agents into your applications.
+
+### Available Packages
+
+| Package                                               | Description                                      | Version                                                                                                                               | Links                                                                                                               |
+| ----------------------------------------------------- | ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| [`@elevenlabs/client`](#elevenlabsclient)             | Core TypeScript/JavaScript client                | [![npm](https://img.shields.io/npm/v/@elevenlabs/client)](https://www.npmjs.com/package/@elevenlabs/client)                           | [README](packages/client/README.md) • [Docs](https://elevenlabs.io/docs/eleven-agents/libraries/java-script)        |
+| [`@elevenlabs/react`](#elevenlabsreact)               | React hooks and components for web applications  | [![npm](https://img.shields.io/npm/v/@elevenlabs/react)](https://www.npmjs.com/package/@elevenlabs/react)                             | [README](packages/react/README.md) • [Docs](https://elevenlabs.io/docs/eleven-agents/libraries/react)               |
+| [`@elevenlabs/react-native`](#elevenlabsreact-native) | React Native SDK for cross-platform applications | [![npm](https://img.shields.io/npm/v/@elevenlabs/react-native)](https://www.npmjs.com/package/@elevenlabs/react-native)               | [README](packages/react-native/README.md) • [Docs](https://elevenlabs.io/docs/eleven-agents/libraries/react-native) |
+| [`@elevenlabs/convai-widget-core`](#widgets)          | Core widget library for embedding Agents         | [![npm](https://img.shields.io/npm/v/@elevenlabs/convai-widget-core)](https://www.npmjs.com/package/@elevenlabs/convai-widget-core)   | [Docs](https://elevenlabs.io/docs/eleven-agents/customization/widget)                                               |
+| [`@elevenlabs/convai-widget-embed`](#widgets)         | Pre-bundled embeddable widget                    | [![npm](https://img.shields.io/npm/v/@elevenlabs/convai-widget-embed)](https://www.npmjs.com/package/@elevenlabs/convai-widget-embed) | [Docs](https://elevenlabs.io/docs/eleven-agents/customization/widget)                                               |
+
+## Package Details
+
+### @elevenlabs/client
+
+The core TypeScript/JavaScript client provides the foundation for all ElevenLabs agent integrations.
+
+#### Features
+
+- **Real-time Communication**: WebRTC-based audio streaming for low-latency agent interactions
+- **Event-driven Architecture**: Comprehensive event system for agent session lifecycle management
+- **Client Tools**: Support for custom client-side tools and functions
+- **Flexible Authentication**: Support for both public and private agent configurations
+- **Audio Controls**: Fine-grained control over audio input/output devices
+
+#### Installation
+
+```bash
+npm install @elevenlabs/client
+```
+
+### @elevenlabs/react
+
+React hooks and components for building multimodal agents with React/Next.js
+
+#### Installation
+
+```bash
+npm install @elevenlabs/react
+```
+
+### @elevenlabs/react-native
+
+React Native SDK for building cross-platform mobile agents
+
+#### Installation
+
+```bash
+npm install @elevenlabs/react-native
+
+# Install peer dependencies
+npm install @livekit/react-native @livekit/react-native-webrtc livekit-client
+```
+
+#### Platform Setup
+
+##### iOS
+
+Add the following to your `Info.plist`:
+
+```xml
+<key>NSMicrophoneUsageDescription</key>
+<string>This app needs access to your microphone for voice agent interactions.</string>
+```
+
+##### Android
+
+Add the following permissions to your `AndroidManifest.xml`:
+
+```xml
+<uses-permission android:name="android.permission.RECORD_AUDIO" />
+<uses-permission android:name="android.permission.INTERNET" />
+```
+
+### Widgets
+
+The ElevenAgents Widgets provide an easy way to embed AI agents into any website as a web component.
+
+Learn how to embed the widget into your website [here](https://elevenlabs.io/docs/eleven-agents/customization/widget).
+
+## Client Tools
+
+Client tools allow your agent to trigger actions in your application, for example in React:
+
+```typescript
+import { useConversation } from "@elevenlabs/react";
+
+const conversation = useConversation({
+  agentId: "your-agent-id",
+});
+
+// Start conversation
+conversation.startSession({
+  clientTools: {
+    logMessage: async ({ message }) => {
+      console.log(message);
+    },
+  },
+});
+```
+
+[Learn more here](https://elevenlabs.io/docs/eleven-agents/customization/tools/client-tools)
+
+## Examples
+
+Explore our example applications to see the SDKs in action:
+
+- [Next.JS Example](https://github.com/elevenlabs/elevenlabs-examples/tree/main/examples/conversational-ai/nextjs)
+- [React Native Expo Example](https://github.com/elevenlabs/packages/tree/main/examples/react-native-expo)
+
+## Documentation
+
+For detailed documentation, visit:
+
+- [React SDK API](https://elevenlabs.io/docs/eleven-agents/libraries/react)
+- [React Native SDK API](https://elevenlabs.io/docs/eleven-agents/libraries/react-native)
+- [TypeScript/JavaScript Client API](https://elevenlabs.io/docs/eleven-agents/libraries/java-script)
+- [Widget](https://elevenlabs.io/docs/eleven-agents/customization/widget)
+
+## Support
+
+- [Documentation](https://elevenlabs.io/docs/eleven-agents/overview)
+- [Discord Community](https://discord.gg/elevenlabs)
+- [Issues](https://github.com/elevenlabs/packages/issues)
+- [Support Email](mailto:support@elevenlabs.io)
+
+### Development Setup
+
+This project uses [Turbo](https://turborepo.com) and pnpm to manage dependencies.
+
+```bash
+# Install pnpm globally
+npm install -g pnpm
+
+# Install dependencies
+pnpm install
+
+# Build all packages
+pnpm run build
+
+# Run tests
+pnpm run test
+
+# Start development mode
+pnpm run dev
+
+# If the change needs a note in the changelog / release nodes, create a changeset
+pnpm run changeset
+```
+
+### Creating a New Package
+
+```bash
+pnpm run create --name=my-new-package
+```
+
+### Releasing
+
+We're using [Changesets](https://github.com/changesets/changesets) to coordinate changelog entries and release notes and as such, there's no more need to create per-package tags when preparing a release.
+
+Simply, merge the latest ["Version Packages" PR](https://github.com/elevenlabs/packages/issues?q=is%3Apr+is%3Aopen+author%3Aapp%2Fpackages-release-automation) opened by [the Changesets action](https://github.com/changesets/action).
+
+See the [Changesets documentation](https://github.com/changesets/changesets/blob/main/docs/common-questions.md) for answers to common questions.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+Engineered by [ElevenLabs](https://elevenlabs.io)

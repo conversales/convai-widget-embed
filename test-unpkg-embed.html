@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Conversales Unpkg Embed Test</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: system-ui, sans-serif;
+        background: #f5f5f5;
+      }
+
+      main {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+
+      .card {
+        width: min(960px, 100%);
+        min-height: 80vh;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
+        padding: 24px;
+      }
+
+      h1 {
+        margin-top: 0;
+        font-size: 24px;
+      }
+
+      p {
+        color: #555;
+      }
+
+      .status {
+        margin: 16px 0 24px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        background: #f1f5f9;
+        color: #0f172a;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .status strong {
+        display: block;
+        margin-bottom: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="card">
+        <h1>Conversales unpkg embed test</h1>
+        <p>If the package is working, the widget should render on this page.</p>
+        <p id="source-label"></p>
+        <div class="status" id="status">
+          <strong>Checking widget status...</strong>
+          Waiting for the widget bundle to load.
+        </div>
+        <div id="widget-root"></div>
+      </section>
+    </main>
+    <script>
+      const status = document.getElementById("status");
+      const sourceLabel = document.getElementById("source-label");
+      const widgetRoot = document.getElementById("widget-root");
+      const supportedTags = ["conversales-convai"];
+      const agentId = "agent_0901krjqc0f2fyqs7zvnp4pywtza";
+      const searchParams = new URLSearchParams(window.location.search);
+      const source = searchParams.get("source") || "local";
+      const leadCapture = searchParams.get("leadCapture") || "on";
+      const embedMode = searchParams.get("embedMode") || "widget-attributes";
+      const leadCaptureEnabled = leadCapture !== "off";
+      const useScriptLeadCapture = embedMode === "script-attributes";
+      const bundleSources = {
+        local: "/packages/convai-widget-embed/dist/index.js?localBuild=" + Date.now(),
+        unpkg: "https://unpkg.com/@conversales/convai-widget-embed@0.12.7/dist/index.js",
+      };
+      const bundleSrc = bundleSources[source] || bundleSources.local;
+
+      function buildHref(nextSource, nextLeadCapture) {
+        const params = new URLSearchParams();
+        params.set("source", nextSource);
+        params.set("leadCapture", nextLeadCapture);
+        return "?" + params.toString();
+      }
+
+      const currentLeadLabel = leadCaptureEnabled ? "with lead" : "without lead";
+      const currentModeLabel =
+        embedMode === "widget-attributes"
+          ? ""
+          : ' · Mode: <strong>' + embedMode + "</strong>";
+
+      sourceLabel.innerHTML =
+        'Source: <strong>' +
+        source +
+        '</strong> · Lead: <strong>' +
+        currentLeadLabel +
+        '</strong>' +
+        currentModeLabel +
+        ' · <a href="' +
+        buildHref("local", "on") +
+        '">local with lead</a> · <a href="' +
+        buildHref("local", "off") +
+        '">local without lead</a> · <a href="' +
+        buildHref("unpkg", "on") +
+        '">unpkg with lead</a> · <a href="' +
+        buildHref("unpkg", "off") +
+        '">unpkg without lead</a>';
+
+      function renderWidget(tagName) {
+        const existingTagName =
+          widgetRoot.firstElementChild?.tagName?.toLowerCase();
+
+        if (existingTagName === tagName) {
+          return;
+        }
+
+        widgetRoot.innerHTML = "";
+
+        const widget = document.createElement(tagName);
+        widget.setAttribute("agent-id", agentId);
+
+        if (leadCaptureEnabled && !useScriptLeadCapture) {
+          widget.setAttribute("leads-capture", "true");
+        }
+
+        widget.setAttribute("show-agent-status", "true");
+
+        widgetRoot.appendChild(widget);
+      }
+
+      if (useScriptLeadCapture) {
+        renderWidget(supportedTags[0]);
+      }
+
+      const bundleScript = document.createElement("script");
+      bundleScript.id = "embed-bundle";
+      bundleScript.async = true;
+      bundleScript.type = "text/javascript";
+      bundleScript.src = bundleSrc;
+
+      if (useScriptLeadCapture && leadCaptureEnabled) {
+        bundleScript.setAttribute("capture-lead", "true");
+      }
+
+      document.head.appendChild(bundleScript);
+
+      function setStatus(title, message) {
+        status.innerHTML = "<strong>" + title + "</strong>" + message;
+      }
+
+      function getRegisteredTag() {
+        return supportedTags.find(tagName => customElements.get(tagName));
+      }
+
+      function updateWidgetStatus() {
+        const tagName = getRegisteredTag();
+
+        if (!tagName) {
+          return false;
+        }
+
+        renderWidget(tagName);
+        setStatus(
+          "Bundle loaded",
+          "The custom element `" +
+            tagName +
+            "` was registered successfully from <code>" +
+            bundleSrc +
+            "</code>. If the widget still does not render, the agent config request is likely failing."
+        );
+
+        return true;
+      }
+
+      Promise.race(
+        supportedTags.map(tagName =>
+          customElements.whenDefined(tagName).then(() => tagName)
+        )
+      )
+        .then(tagName => {
+          renderWidget(tagName);
+          setStatus(
+            "Bundle loaded",
+            "The custom element `" +
+              tagName +
+              "` was registered successfully from <code>" +
+              bundleSrc +
+              "</code>. If the widget still does not render, the agent config request is likely failing."
+          );
+        })
+        .catch(error => {
+          setStatus("Registration failed", error.message);
+        });
+
+      bundleScript.addEventListener("load", () => {
+        window.setTimeout(() => {
+          if (!updateWidgetStatus()) {
+            setStatus(
+              "Bundle loaded without widget",
+              "The bundle loaded from <code>" +
+                bundleSrc +
+                "</code>, but it did not register one of the expected custom elements."
+            );
+          }
+        }, 0);
+      });
+
+      bundleScript.addEventListener("error", () => {
+        setStatus(
+          "Bundle failed to load",
+          "The script request for <code>" +
+            bundleSrc +
+            "</code> failed before the widget could register."
+        );
+      });
+
+      updateWidgetStatus();
+
+      window.addEventListener("error", event => {
+        if (typeof event.message === "string" && event.message) {
+          setStatus("Runtime error", event.message);
+        }
+      });
+    </script>
+  </body>
+</html>

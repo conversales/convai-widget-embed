@@ -1,0 +1,62 @@
+{
+  "name": "@elevenlabs/react",
+  "version": "1.6.0",
+  "description": "ElevenLabs React Library",
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "unpkg": "./dist/lib.iife.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "generate-version": "printf \"// This file is auto-generated during build\\nexport const PACKAGE_VERSION = \\\"%s\\\";\\n\" \"$npm_package_version\" > src/version.ts",
+    "prebuild": "npm run generate-version",
+    "build:esm": "tsc --build",
+    "build:iife": "rolldown src/index.ts -f iife --name ElevenLabsReact -o dist/lib.iife.js --sourcemap --external react --external react-dom --external @elevenlabs/client --external @elevenlabs/client/internal",
+    "build": "pnpm run build:esm && pnpm run build:iife",
+    "clean": "tsc --build --clean && rm -rf ./dist",
+    "dev": "tsc --build --watch",
+    "lint:es": "pnpm exec eslint .",
+    "lint:prettier": "prettier 'src/**/*.ts' --check",
+    "test": "vitest"
+  },
+  "keywords": [],
+  "author": "ElevenLabs",
+  "license": "MIT",
+  "dependencies": {
+    "@elevenlabs/client": "workspace:*"
+  },
+  "peerDependencies": {
+    "react": ">=16.8.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@testing-library/react": "^16.3.2",
+    "@types/react": "^19.2.14",
+    "eslint": "^10.3.0",
+    "eslint-import-resolver-typescript": "^4.4.4",
+    "eslint-plugin-import-x": "^4.16.2",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "rolldown": "^1.0.0-rc.9",
+    "typescript": "^5.5.4",
+    "typescript-eslint": "^8.59.2",
+    "vitest": "^4.1.5"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/elevenlabs/packages.git",
+    "directory": "packages/react"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "next"
+  }
+}

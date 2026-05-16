@@ -1,0 +1,660 @@
+import { Callbacks, Mode, Status } from "@elevenlabs/types";
+import type {
+  BaseConnection,
+  DisconnectionDetails,
+  SessionConfig,
+  FormatConfig,
+} from "./utils/BaseConnection.js";
+import { extractApiErrorMessage } from "./utils/errors.js";
+import type { Conversation } from "./index.js";
+import type {
+  AgentAudioEvent,
+  AgentChatResponsePartEvent,
+  AgentResponseEvent,
+  AgentResponseCorrectionEvent,
+  ClientToolCallEvent,
+  IncomingSocketEvent,
+  InternalTentativeAgentResponseEvent,
+  InterruptionEvent,
+  UserTranscriptionEvent,
+  VadScoreEvent,
+  MCPToolCallClientEvent,
+  AgentToolResponseEvent,
+  AgentToolResponseFullPayloadEvent,
+  ConversationMetadataEvent,
+  AsrInitiationMetadataEvent,
+  MCPConnectionStatusEvent,
+  ErrorMessageEvent,
+  AgentToolRequestEvent,
+  GuardrailTriggeredEvent,
+} from "./utils/events.js";
+import type { InputConfig } from "./utils/input.js";
+import type { OutputConfig } from "./utils/output.js";
+
+const HTTPS_API_ORIGIN = "https://api.elevenlabs.io";
+
+export type { Role, Mode, Status, Callbacks } from "@elevenlabs/types";
+export { CALLBACK_KEYS } from "@elevenlabs/types";
+
+/** Allows self-hosting the worklets to avoid whitelisting blob: and data: in the CSP script-src  */
+export type AudioWorkletConfig = {
+  workletPaths?: {
+    rawAudioProcessor?: string;
+    audioConcatProcessor?: string;
+  };
+  libsampleratePath?: string;
+};
+
+export type ConversationCreatedCallback = (conversation: Conversation) => void;
+
+export type ConversationLifecycleOptions = {
+  onConversationCreated?: ConversationCreatedCallback;
+};
+
+export type ContextualUpdateOptions = {
+  contextId?: string;
+};
+
+export type Options = SessionConfig &
+  Callbacks &
+  ConversationLifecycleOptions &
+  ClientToolsConfig &
+  InputConfig &
+  OutputConfig &
+  AudioWorkletConfig;
+
+export type PartialOptions = SessionConfig &
+  Partial<Callbacks> &
+  ConversationLifecycleOptions &
+  Partial<ClientToolsConfig> &
+  Partial<InputConfig> &
+  Partial<OutputConfig> &
+  Partial<FormatConfig> &
+  Partial<AudioWorkletConfig>;
+
+export type MultimodalMessageInput = {
+  text?: string;
+  fileId?: string;
+};
+
+export type UploadFileResult = {
+  fileId: string;
+};
+
+export type ClientToolsConfig = {
+  clientTools: Record<
+    string,
+    (
+      parameters: any
+    ) => Promise<string | number | void> | string | number | void
+  >;
+};
+
+export function isTextOnly(options: PartialOptions): boolean | undefined {
+  const { textOnly: textOnlyOverride } = options.overrides?.conversation ?? {};
+  const { textOnly } = options;
+  if (typeof textOnly === "boolean") {
+    if (
+      typeof textOnlyOverride === "boolean" &&
+      textOnly !== textOnlyOverride
+    ) {
+      console.warn(
+        `Conflicting textOnly options provided: ${textOnly} via options.textOnly (will be used) and ${textOnlyOverride} via options.overrides.conversation.textOnly (will be ignored)`
+      );
+    }
+    return textOnly;
+  } else if (typeof textOnlyOverride === "boolean") {
+    return textOnlyOverride;
+  } else {
+    return undefined;
+  }
+}
+
+export abstract class BaseConversation {
+  protected lastInterruptTimestamp = 0;
+  protected mode: Mode = "listening";
+  protected status: Status = "connecting";
+  protected volume = 1;
+  protected currentEventId = 1;
+  protected lastFeedbackEventId = 0;
+  protected canSendFeedback = false;
+
+  protected static getFullOptions(partialOptions: PartialOptions): Options {
+    const textOnly = isTextOnly(partialOptions);
+    return {
+      clientTools: {},
+      onConnect: () => {},
+      onDebug: () => {},
+      onDisconnect: () => {},
+      onError: () => {},
+      onMessage: () => {},
+      onAudio: () => {},
+      onModeChange: () => {},
+      onStatusChange: () => {},
+      onCanSendFeedbackChange: () => {},
+      onInterruption: () => {},
+      onAgentResponseCorrection: () => {},
+      ...partialOptions,
+      textOnly,
+      overrides: {
+        ...partialOptions.overrides,
+        conversation: {
+          ...partialOptions.overrides?.conversation,
+          textOnly,
+        },
+      },
+    };
+  }
+
+  protected constructor(
+    protected readonly options: Options,
+    protected readonly connection: BaseConnection
+  ) {
+    this.connection.onMessage(this.onMessage);
+    this.connection.onDisconnect(this.endSessionWithDetails);
+    this.connection.onModeChange(mode => this.updateMode(mode));
+  }
+
+  protected markConnected() {
+    this.updateStatus("connected");
+  }
+
+  public endSession() {
+    return this.endSessionWithDetails({ reason: "user" });
+  }
+
+  private endSessionWithDetails = async (details: DisconnectionDetails) => {
+    if (this.status !== "connected" && this.status !== "connecting") return;
+    this.updateStatus("disconnecting");
+    await this.handleEndSession();
+    this.updateStatus("disconnected");
+    if (this.options.onDisconnect) {
+      this.options.onDisconnect(details);
+    }
+  };
+
+  protected async handleEndSession() {
+    this.connection.close();
+  }
+
+  protected updateMode(mode: Mode) {
+    if (mode !== this.mode) {
+      this.mode = mode;
+      if (this.options.onModeChange) {
+        this.options.onModeChange({ mode });
+      }
+    }
+  }
+
+  protected updateStatus(status: Status) {
+    if (status !== this.status) {
+      this.status = status;
+      if (this.options.onStatusChange) {
+        this.options.onStatusChange({ status });
+      }
+    }
+  }
+
+  protected updateCanSendFeedback() {
+    const canSendFeedback = this.currentEventId !== this.lastFeedbackEventId;
+    if (this.canSendFeedback !== canSendFeedback) {
+      this.canSendFeedback = canSendFeedback;
+      if (this.options.onCanSendFeedbackChange) {
+        this.options.onCanSendFeedbackChange({ canSendFeedback });
+      }
+    }
+  }
+
+  protected handleInterruption(event: InterruptionEvent) {
+    if (event.interruption_event) {
+      this.lastInterruptTimestamp = event.interruption_event.event_id;
+
+      if (this.options.onInterruption) {
+        this.options.onInterruption({
+          event_id: event.interruption_event.event_id,
+        });
+      }
+    }
+  }
+
+  protected handleAgentResponse(event: AgentResponseEvent) {
+    if (this.options.onMessage) {
+      this.options.onMessage({
+        source: "ai",
+        role: "agent",
+        message: event.agent_response_event.agent_response,
+        event_id: event.agent_response_event.event_id,
+      });
+    }
+  }
+
+  protected handleAgentResponseCorrection(event: AgentResponseCorrectionEvent) {
+    if (this.options.onAgentResponseCorrection) {
+      this.options.onAgentResponseCorrection(
+        event.agent_response_correction_event
+      );
+    }
+  }
+
+  protected handleUserTranscript(event: UserTranscriptionEvent) {
+    if (this.options.onMessage) {
+      this.options.onMessage({
+        source: "user",
+        role: "user",
+        message: event.user_transcription_event.user_transcript,
+        event_id: event.user_transcription_event.event_id,
+      });
+    }
+  }
+
+  protected handleTentativeAgentResponse(
+    event: InternalTentativeAgentResponseEvent
+  ) {
+    if (this.options.onDebug) {
+      this.options.onDebug({
+        type: "tentative_agent_response",
+        response:
+          event.tentative_agent_response_internal_event
+            .tentative_agent_response,
+      });
+    }
+  }
+
+  protected handleVadScore(event: VadScoreEvent) {
+    if (this.options.onVadScore) {
+      this.options.onVadScore({
+        vadScore: event.vad_score_event.vad_score,
+      });
+    }
+  }
+
+  protected async handleClientToolCall(event: ClientToolCallEvent) {
+    if (
+      Object.prototype.hasOwnProperty.call(
+        this.options.clientTools,
+        event.client_tool_call.tool_name
+      )
+    ) {
+      try {
+        const result =
+          (await this.options.clientTools[event.client_tool_call.tool_name](
+            event.client_tool_call.parameters
+          )) ?? "Client tool execution successful."; // default client-tool call response
+
+        // The API expects result to be a string, so we need to convert it if it's not already a string
+        const formattedResult =
+          typeof result === "object" ? JSON.stringify(result) : String(result);
+
+        this.connection.sendMessage({
+          type: "client_tool_result",
+          tool_call_id: event.client_tool_call.tool_call_id,
+          result: formattedResult,
+          is_error: false,
+        });
+      } catch (e) {
+        this.onError(
+          `Client tool execution failed with following error: ${(e as Error)?.message}`,
+          {
+            clientToolName: event.client_tool_call.tool_name,
+          }
+        );
+        this.connection.sendMessage({
+          type: "client_tool_result",
+          tool_call_id: event.client_tool_call.tool_call_id,
+          result: `Client tool execution failed: ${(e as Error)?.message}`,
+          is_error: true,
+        });
+      }
+    } else {
+      if (this.options.onUnhandledClientToolCall) {
+        this.options.onUnhandledClientToolCall(event.client_tool_call);
+
+        return;
+      }
+
+      this.onError(
+        `Client tool with name ${event.client_tool_call.tool_name} is not defined on client`,
+        {
+          clientToolName: event.client_tool_call.tool_name,
+        }
+      );
+      this.connection.sendMessage({
+        type: "client_tool_result",
+        tool_call_id: event.client_tool_call.tool_call_id,
+        result: `Client tool with name ${event.client_tool_call.tool_name} is not defined on client`,
+        is_error: true,
+      });
+    }
+  }
+
+  protected handleAudio(event: AgentAudioEvent) {}
+
+  protected handleMCPToolCall(event: MCPToolCallClientEvent) {
+    if (this.options.onMCPToolCall) {
+      this.options.onMCPToolCall(event.mcp_tool_call);
+    }
+  }
+
+  protected handleMCPConnectionStatus(event: MCPConnectionStatusEvent) {
+    if (this.options.onMCPConnectionStatus) {
+      this.options.onMCPConnectionStatus(event.mcp_connection_status);
+    }
+  }
+
+  protected handleAgentToolRequest(event: AgentToolRequestEvent) {
+    if (this.options.onAgentToolRequest) {
+      this.options.onAgentToolRequest(event.agent_tool_request);
+    }
+  }
+
+  protected handleAgentToolResponse(event: AgentToolResponseEvent) {
+    if (event.agent_tool_response.tool_name === "end_call") {
+      this.endSessionWithDetails({
+        reason: "agent",
+        context: new CloseEvent("end_call", { reason: "Agent ended the call" }),
+      });
+    }
+
+    if (this.options.onAgentToolResponse) {
+      this.options.onAgentToolResponse(event.agent_tool_response);
+    }
+  }
+
+  protected handleAgentToolResponseFullPayload(
+    event: AgentToolResponseFullPayloadEvent
+  ) {
+    if (event.agent_tool_response_full_payload.tool_name === "end_call") {
+      this.endSessionWithDetails({
+        reason: "agent",
+        context: new CloseEvent("end_call", { reason: "Agent ended the call" }),
+      });
+    }
+
+    if (this.options.onAgentToolResponse) {
+      this.options.onAgentToolResponse(event.agent_tool_response_full_payload);
+    }
+  }
+
+  protected handleConversationMetadata(event: ConversationMetadataEvent) {
+    if (this.options.onConversationMetadata) {
+      this.options.onConversationMetadata(
+        event.conversation_initiation_metadata_event
+      );
+    }
+  }
+
+  protected handleAsrInitiationMetadata(event: AsrInitiationMetadataEvent) {
+    if (this.options.onAsrInitiationMetadata) {
+      this.options.onAsrInitiationMetadata(event.asr_initiation_metadata_event);
+    }
+  }
+
+  protected handleAgentChatResponsePart(event: AgentChatResponsePartEvent) {
+    if (this.options.onAgentChatResponsePart) {
+      this.options.onAgentChatResponsePart(event.text_response_part);
+    }
+  }
+
+  protected handleGuardrailTriggered(_event: GuardrailTriggeredEvent) {
+    if (this.options.onGuardrailTriggered) {
+      this.options.onGuardrailTriggered();
+    }
+  }
+
+  protected handleErrorEvent(event: ErrorMessageEvent) {
+    const errorType = event.error_event.error_type;
+    const message =
+      event.error_event.message || event.error_event.reason || "Unknown error";
+
+    if (errorType === "max_duration_exceeded") {
+      this.endSessionWithDetails({
+        reason: "error",
+        message: message,
+        context: new Event("max_duration_exceeded"),
+      });
+      return;
+    }
+
+    this.onError(`Server error: ${message}`, {
+      errorType,
+      code: event.error_event.code,
+      debugMessage: event.error_event.debug_message,
+      details: event.error_event.details,
+    });
+  }
+
+  private onMessage = async (parsedEvent: IncomingSocketEvent) => {
+    switch (parsedEvent.type) {
+      case "interruption": {
+        this.handleInterruption(parsedEvent);
+        return;
+      }
+      case "agent_response": {
+        this.handleAgentResponse(parsedEvent);
+        return;
+      }
+      case "agent_response_correction": {
+        this.handleAgentResponseCorrection(parsedEvent);
+        return;
+      }
+      case "user_transcript": {
+        this.handleUserTranscript(parsedEvent);
+        return;
+      }
+      case "internal_tentative_agent_response": {
+        this.handleTentativeAgentResponse(parsedEvent);
+        return;
+      }
+      case "client_tool_call": {
+        try {
+          await this.handleClientToolCall(parsedEvent);
+        } catch (error) {
+          this.onError(
+            `Unexpected error in client tool call handling: ${error instanceof Error ? error.message : String(error)}`,
+            {
+              clientToolName: parsedEvent.client_tool_call.tool_name,
+              toolCallId: parsedEvent.client_tool_call.tool_call_id,
+            }
+          );
+        }
+        return;
+      }
+      case "audio": {
+        this.handleAudio(parsedEvent);
+        return;
+      }
+
+      case "vad_score": {
+        this.handleVadScore(parsedEvent);
+        return;
+      }
+
+      case "ping": {
+        this.connection.sendMessage({
+          type: "pong",
+          event_id: parsedEvent.ping_event.event_id,
+        });
+        // parsedEvent.ping_event.ping_ms can be used on client side, for example
+        // to warn if ping is too high that experience might be degraded.
+        return;
+      }
+
+      case "mcp_tool_call": {
+        this.handleMCPToolCall(parsedEvent);
+        return;
+      }
+
+      case "mcp_connection_status": {
+        this.handleMCPConnectionStatus(parsedEvent);
+        return;
+      }
+
+      case "agent_tool_request": {
+        this.handleAgentToolRequest(parsedEvent);
+        return;
+      }
+
+      case "agent_tool_response": {
+        this.handleAgentToolResponse(parsedEvent);
+        return;
+      }
+
+      case "agent_tool_response_full_payload": {
+        this.handleAgentToolResponseFullPayload(parsedEvent);
+        return;
+      }
+
+      case "conversation_initiation_metadata": {
+        this.handleConversationMetadata(parsedEvent);
+        return;
+      }
+
+      case "asr_initiation_metadata": {
+        this.handleAsrInitiationMetadata(parsedEvent);
+        return;
+      }
+
+      case "agent_chat_response_part": {
+        this.handleAgentChatResponsePart(parsedEvent);
+        return;
+      }
+
+      case "guardrail_triggered": {
+        this.handleGuardrailTriggered(parsedEvent);
+        return;
+      }
+
+      case "error": {
+        this.handleErrorEvent(parsedEvent);
+        return;
+      }
+
+      default: {
+        if (this.options.onDebug) {
+          this.options.onDebug(parsedEvent);
+        }
+        return;
+      }
+    }
+  };
+
+  private onError(message: string, context?: any) {
+    console.error(message, context);
+    if (this.options.onError) {
+      this.options.onError(message, context);
+    }
+  }
+
+  public getId() {
+    return this.connection.conversationId;
+  }
+
+  public isOpen() {
+    return this.status === "connected";
+  }
+
+  public abstract setVolume(options: { volume: number }): void;
+  public abstract setMicMuted(isMuted: boolean): void;
+  /**
+   * Returns byte frequency data (0-255) for the input audio, focused on the
+   * human voice range (100-8000 Hz).
+   */
+  public abstract getInputByteFrequencyData(): Uint8Array;
+  /**
+   * Returns byte frequency data (0-255) for the output audio, focused on the
+   * human voice range (100-8000 Hz).
+   */
+  public abstract getOutputByteFrequencyData(): Uint8Array;
+  public abstract getInputVolume(): number;
+  public abstract getOutputVolume(): number;
+
+  public sendFeedback(like: boolean) {
+    if (!this.canSendFeedback) {
+      console.warn(
+        this.lastFeedbackEventId === 0
+          ? "Cannot send feedback: the conversation has not started yet."
+          : "Cannot send feedback: feedback has already been sent for the current response."
+      );
+      return;
+    }
+
+    this.connection.sendMessage({
+      type: "feedback",
+      score: like ? "like" : "dislike",
+      event_id: this.currentEventId,
+    });
+    this.lastFeedbackEventId = this.currentEventId;
+    this.updateCanSendFeedback();
+  }
+
+  public sendContextualUpdate(text: string, options?: ContextualUpdateOptions) {
+    this.connection.sendMessage({
+      type: "contextual_update",
+      text,
+      ...(options?.contextId ? { context_id: options.contextId } : {}),
+    });
+  }
+
+  public sendUserMessage(text: string) {
+    this.connection.sendMessage({
+      type: "user_message",
+      text,
+    });
+  }
+
+  public sendUserActivity() {
+    this.connection.sendMessage({
+      type: "user_activity",
+    });
+  }
+
+  public sendMCPToolApprovalResult(toolCallId: string, isApproved: boolean) {
+    this.connection.sendMessage({
+      type: "mcp_tool_approval_result",
+      tool_call_id: toolCallId,
+      is_approved: isApproved,
+    });
+  }
+
+  public sendMultimodalMessage(options: MultimodalMessageInput) {
+    this.connection.sendMessage({
+      type: "multimodal_message",
+      text: options.text
+        ? { type: "user_message" as const, text: options.text }
+        : undefined,
+      file: options.fileId
+        ? { type: "file_input" as const, file_id: options.fileId }
+        : undefined,
+    });
+  }
+
+  public async uploadFile(file: Blob): Promise<UploadFileResult> {
+    const origin = (this.options.origin ?? HTTPS_API_ORIGIN)
+      .replace(/^wss:\/\//, "https://")
+      .replace(/^ws:\/\//, "http://");
+
+    const filename =
+      "name" in file && typeof file.name === "string"
+        ? file.name
+        : `upload.${(file.type || "image/png").split("/").pop()?.split("+")[0]}`;
+
+    const body = new FormData();
+    body.append("file", file, filename);
+
+    const response = await fetch(
+      `${origin}/v1/convai/conversations/${this.connection.conversationId}/files`,
+      { method: "POST", body }
+    );
+
+    if (!response.ok) {
+      const message = await extractApiErrorMessage(response);
+      throw new Error(`Upload failed: ${response.status} ${message}`);
+    }
+
+    const { file_id } = await response.json();
+    if (typeof file_id !== "string" || !file_id) {
+      throw new Error("Upload response is missing a valid file_id");
+    }
+    return { fileId: file_id };
+  }
+}
