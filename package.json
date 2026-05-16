@@ -1,0 +1,29 @@
+{
+  "name": "@conversales/convai-widget-embed",
+  "version": "0.1.0",
+  "description": "Customized embed wrapper for a conversational AI widget.",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "check-types": "tsc --noEmit",
+    "dev": "tsc -w -p tsconfig.json"
+  },
+  "keywords": [
+    "widget",
+    "embed",
+    "chatbot",
+    "typescript"
+  ],
+  "license": "MIT",
+  "publishConfig": {
+    "access": "public"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3"
+  }
+}
