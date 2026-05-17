@@ -79,8 +79,10 @@
       const leadCaptureEnabled = leadCapture !== "off";
       const useScriptLeadCapture = embedMode === "script-attributes";
       const bundleSources = {
-        local: "/packages/convai-widget-embed/dist/index.js?localBuild=" + Date.now(),
-        unpkg: "https://unpkg.com/@conversales/convai-widget-embed@0.12.7/dist/index.js",
+        local:
+          "/packages/convai-widget-embed/dist/index.js?localBuild=" +
+          Date.now(),
+        unpkg: "https://unpkg.com/@conversales/convai-widget-embed",
       };
       const bundleSrc = bundleSources[source] || bundleSources.local;
 
@@ -91,18 +93,20 @@
         return "?" + params.toString();
       }
 
-      const currentLeadLabel = leadCaptureEnabled ? "with lead" : "without lead";
+      const currentLeadLabel = leadCaptureEnabled
+        ? "with lead"
+        : "without lead";
       const currentModeLabel =
         embedMode === "widget-attributes"
           ? ""
-          : ' · Mode: <strong>' + embedMode + "</strong>";
+          : " · Mode: <strong>" + embedMode + "</strong>";
 
       sourceLabel.innerHTML =
-        'Source: <strong>' +
+        "Source: <strong>" +
         source +
-        '</strong> · Lead: <strong>' +
+        "</strong> · Lead: <strong>" +
         currentLeadLabel +
-        '</strong>' +
+        "</strong>" +
         currentModeLabel +
         ' · <a href="' +
         buildHref("local", "on") +

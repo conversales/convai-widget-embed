@@ -65,12 +65,12 @@ const STORAGE_KEY = "markdown-playground-text";
 const DEFAULT_TEXT =
   "Hey, how can I help you?\n\n" +
   "---\n\n" +
-  "Sure thing here it is: [ElevenLabs website](https://elevenlabs.io)\n\n" +
+  "Sure thing here it is: [Conversales website](https://conversales.in)\n\n" +
   "1. Bullet 1\n" +
   "2. Bullet 2\n" +
   "3. Bullet 3\n\n" +
   "```python\n" +
-  "pip install elevenlabs\n" +
+  "pip install requests\n" +
   "pip install python-dotenv\n" +
   "```\n\n" +
   "---\n\n" +
@@ -339,7 +339,7 @@ function MarkdownPlayground() {
               className={`w-full p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500 ${inputBgClass} ${borderClass}`}
               value={allowedDomainsInput}
               onChange={e => setAllowedDomainsInput(e.currentTarget.value)}
-              placeholder="e.g. elevenlabs.io, example.com or * for all"
+              placeholder="e.g. conversales.in, example.com or * for all"
             />
           </div>
         </div>

@@ -18,7 +18,7 @@ const RatingIcon = ({
     <span
       className={clsx(
         "w-8 h-8 grid place-content-center",
-        isFilled ? "text-base-primary" : "text-base-border"
+        isFilled ? "text-base-primary" : "text-base-subtle"
       )}
     >
       <Icon name={iconName} size="lg" />
@@ -73,7 +73,7 @@ const RatingButton = ({
       onKeyDown={handleKeyDown}
       className={clsx(
         "w-8 h-8 grid place-content-center rounded-full focus-ring transition-colors cursor-pointer",
-        isFilled || isHovered ? "text-base-primary" : "text-base-border"
+        isFilled || isHovered ? "text-base-primary" : "text-base-subtle"
       )}
     >
       <Icon name={iconName} size="lg" />

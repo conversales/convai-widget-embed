@@ -162,7 +162,7 @@ export function SheetActions({
   return (
     <div className="sticky bottom-0 pointer-events-none z-10 max-h-[50%] flex flex-col">
       <div className="absolute top-0 left-0 right-0 h-4 -translate-y-full bg-gradient-to-t from-base to-transparent pointer-events-none backdrop-blur-[1px] [mask-image:linear-gradient(to_top,black,transparent)] shadow-scroll-fade-top" />
-      <div className="relative w-full px-3 pb-3 flex flex-col items-center pointer-events-auto min-h-0">
+      <div className="relative w-full px-3 pb-1.5 flex flex-col items-center pointer-events-auto min-h-0">
         {fileError.value && (
           <div className="w-full px-1 pb-1.5 text-xs text-base-error text-center">
             {fileError.value}
@@ -284,10 +284,10 @@ function SheetTextarea({
         leadCaptureRequired.value
           ? text.lead_capture_title.value
           : textOnly.value
-          ? isDisconnected.value && conversationIndex.value > 0
-            ? text.input_placeholder_new_conversation.value
-            : text.input_placeholder_text_only.value
-          : text.input_placeholder.value
+            ? isDisconnected.value && conversationIndex.value > 0
+              ? text.input_placeholder_new_conversation.value
+              : text.input_placeholder_text_only.value
+            : text.input_placeholder.value
       }
       className="w-full h-full resize-none bg-base leading-5 outline-hidden text-sm text-base-primary placeholder:text-base-subtle disabled:cursor-not-allowed disabled:text-base-subtle p-3 pb-[60px] min-h-18 max-h-full field-sizing-content"
     />

@@ -18,7 +18,7 @@ export function PoweredBy({ inline = false }: PoweredByProps) {
       className={clsx(
         "pointer-events-auto flex items-center gap-1.5 text-[11px] font-medium text-base-subtle",
         inline
-          ? "justify-center px-2 pt-2"
+          ? "justify-center px-2 pt-1"
           : clsx(
               "rounded-full bg-base px-3 py-2 shadow-sm ring-1 ring-base-border z-10",
               config.value.placement.startsWith("top")

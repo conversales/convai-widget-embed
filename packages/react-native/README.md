@@ -1,14 +1,10 @@
 ![hero](../../assets/hero.png)
 
-# ElevenAgents React Native SDK
+# Conversales React Native SDK
 
-Build multimodal agents with [ElevenAgents](https://elevenlabs.io/docs/eleven-agents/overview) in React Native.
+Build multimodal agents with [Conversales](https://conversales.in) in React Native.
 
-This package is a React Native companion to [`@elevenlabs/react`](https://www.npmjs.com/package/@elevenlabs/react). It re-exports the full conversation API and automatically configures the platform for voice conversations on React Native (WebRTC polyfills and native AudioSession setup).
-
-![LOGO](https://github.com/elevenlabs/elevenlabs-python/assets/12028621/21267d89-5e82-4e7e-9c81-caf30b237683)
-[![Discord](https://badgen.net/badge/black/ElevenLabs/icon?icon=discord&label)](https://discord.gg/elevenlabs)
-[![Twitter](https://badgen.net/badge/black/ElevenLabs/icon?icon=twitter&label)](https://twitter.com/ElevenLabs)
+This package is the React Native companion to the React SDK in this repo. It re-exports the full conversation API and automatically configures the platform for voice conversations on React Native.
 
 ## Installation
 
@@ -67,7 +63,7 @@ See the [Expo example app](../../examples/react-native-expo) for a complete work
 
 ## Documentation
 
-For the full API reference, see the [React Native SDK documentation](https://elevenlabs.io/docs/eleven-agents/libraries/react-native).
+For product details and repo-level guidance, see the root README or visit [conversales.in](https://conversales.in).
 
 ## Development
 

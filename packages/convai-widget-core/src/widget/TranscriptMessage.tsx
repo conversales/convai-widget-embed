@@ -29,6 +29,7 @@ function AgentMessageBubble({
 }: {
   entry: Extract<DisplayTranscriptEntry, { type: "message" }>;
 }) {
+  const { previewUrl } = useAvatarConfig();
   const linkConfig = useMarkdownLinkConfig();
   const config = useWidgetConfig();
 
@@ -38,17 +39,27 @@ function AgentMessageBubble({
       : entry.message;
 
   return (
-    <div className="pr-8">
-      {displayMessage && (
-        <WidgetStreamdown linkConfig={linkConfig.value}>
-          {displayMessage}
-        </WidgetStreamdown>
-      )}
-      {entry.toolStatus && (
-        <div className={displayMessage ? "mt-2" : undefined}>
-          <ToolCallMessage status={entry.toolStatus} />
-        </div>
-      )}
+    <div className="flex gap-2.5 pr-16 origin-top-left min-w-0 transition-[opacity,transform] duration-200 data-hidden:opacity-0 data-hidden:scale-75">
+      <img
+        src={previewUrl}
+        alt="AI agent avatar"
+        className="bg-base-border shrink-0 w-5 h-5 rounded-full"
+      />
+      <div className="flex flex-col items-start gap-1.5 min-w-0">
+        {displayMessage && (
+          <WidgetStreamdown
+            className="px-3 py-2.5 rounded-bubble text-sm min-w-0 wrap-break-word whitespace-pre-wrap bg-base-active text-base-primary"
+            linkConfig={linkConfig.value}
+          >
+            {displayMessage}
+          </WidgetStreamdown>
+        )}
+        {entry.toolStatus && (
+          <div className={clsx("self-start", displayMessage && "mt-2")}>
+            <ToolCallMessage status={entry.toolStatus} />
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -165,18 +176,21 @@ function DisconnectionMessage({
   const config = useWidgetConfig();
 
   return (
-    <div className="px-8 flex flex-col">
-      {endFeedbackType.value === "rating" && <Feedback />}
-      <div className="text-xs text-base-subtle text-center transition-opacity duration-200 data-hidden:opacity-0">
-        {entry.role === "user"
-          ? text.user_ended_conversation
-          : text.agent_ended_conversation}
-        <br />
-        {lastId.value && config.value.show_conversation_id && (
-          <span className="break-all">
-            {text.conversation_id}: {lastId.value}
-          </span>
-        )}
+    <div className="px-8 flex justify-center">
+      <div className="flex w-full max-w-sm flex-col items-center gap-3 rounded-[calc(var(--el-bubble-radius)+6px)] border border-base-border bg-base px-4 py-4 shadow-sm">
+        {endFeedbackType.value === "rating" && <Feedback />}
+        <div className="text-center transition-opacity duration-200 data-hidden:opacity-0">
+          <div className="text-xs font-medium text-base-primary">
+            {entry.role === "user"
+              ? text.user_ended_conversation
+              : text.agent_ended_conversation}
+          </div>
+          {lastId.value && config.value.show_conversation_id && (
+            <div className="mt-1 break-all text-xs text-base-subtle">
+              {text.conversation_id}: {lastId.value}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

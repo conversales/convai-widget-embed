@@ -1,7 +1,7 @@
 {
   "name": "@elevenlabs/react-native",
   "version": "1.2.0",
-  "description": "ElevenLabs React Native SDK for the Agents Platform",
+  "description": "Conversales React Native SDK for the Agents Platform",
   "type": "module",
   "exports": {
     ".": {
@@ -20,14 +20,14 @@
     "lint:prettier": "prettier 'src/**/*.ts' --check"
   },
   "keywords": [
-    "elevenlabs",
+    "conversales",
     "react-native",
     "conversational-ai",
     "webrtc",
     "voice",
     "ai"
   ],
-  "author": "ElevenLabs",
+  "author": "Conversales",
   "license": "MIT",
   "peerDependencies": {
     "@livekit/react-native": "^2.9.2",

@@ -1,6 +1,6 @@
-# ElevenAgents Testbench
+# Conversales Testbench
 
-A local dev app for testing and debugging [ElevenAgents](https://elevenlabs.io/docs/eleven-agents/overview). Use it to try different agents, inspect conversation state, and exercise client tools and config.
+A local dev app for testing and debugging Conversales agents. Use it to try different agents, inspect conversation state, and exercise client tools and config.
 
 ## Getting Started
 

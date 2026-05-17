@@ -1,7 +1,7 @@
 {
   "name": "@elevenlabs/client",
   "version": "1.7.0",
-  "description": "ElevenLabs JavaScript Client Library",
+  "description": "Conversales JavaScript Client Library",
   "type": "module",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -25,7 +25,7 @@
     "test": "vitest"
   },
   "keywords": [],
-  "author": "ElevenLabs",
+  "author": "Conversales",
   "license": "MIT",
   "devDependencies": {
     "@eslint/js": "^10.0.1",

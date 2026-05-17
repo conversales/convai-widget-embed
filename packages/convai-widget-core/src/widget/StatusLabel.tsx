@@ -4,9 +4,13 @@ import { useConversation } from "../contexts/conversation";
 import { useComputed, useSignalEffect } from "@preact/signals";
 import { InOutTransition } from "../components/InOutTransition";
 import { useTextContents } from "../contexts/text-contents";
+import { useConversationMode } from "../contexts/conversation-mode";
+import { useIsConversationTextOnly } from "../contexts/widget-config";
 
 export function useStatusLabelText() {
-  const { status } = useConversation();
+  const { status, mode } = useConversation();
+  const { isVoiceMode } = useConversationMode();
+  const isConversationTextOnly = useIsConversationTextOnly();
   const text = useTextContents();
 
   return useComputed(() => {
@@ -16,6 +20,12 @@ export function useStatusLabelText() {
 
     if (status.value === "connecting") {
       return text.connecting_status.value;
+    }
+
+    if (isVoiceMode.value && !isConversationTextOnly.value) {
+      return mode.value === "speaking"
+        ? text.speaking_status.value
+        : text.listening_status.value;
     }
 
     return text.chatting_status.value;
@@ -46,16 +56,20 @@ export function StatusLabel({
     <div
       className={clsx(
         "relative overflow-hidden text-xs font-medium",
-        status.value === "disconnected" ? "text-base-subtle" : "text-base-primary",
+        status.value === "disconnected"
+          ? "text-base-subtle"
+          : "text-base-primary",
         className
       )}
       {...props}
     >
       <InOutTransition key={label} initial={false} active={true}>
-        <div className={clsx(
-          "whitespace-nowrap transition-[opacity,transform] ease-out duration-200 data-hidden:opacity-0 transform data-hidden:translate-y-2",
-          status.value !== "disconnected" && "animate-text"
-        )}>
+        <div
+          className={clsx(
+            "whitespace-nowrap transition-[opacity,transform] ease-out duration-200 data-hidden:opacity-0 transform data-hidden:translate-y-2",
+            status.value !== "disconnected" && "animate-text"
+          )}
+        >
           {label}
         </div>
       </InOutTransition>

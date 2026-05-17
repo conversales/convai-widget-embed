@@ -1,10 +1,10 @@
-# @elevenlabs/types
+# Conversales Types
 
-TypeScript type definitions for ElevenLabs APIs, auto-generated from AsyncAPI specifications.
+TypeScript type definitions for Conversales APIs, auto-generated from AsyncAPI specifications.
 
 ## Overview
 
-This package provides strongly-typed interfaces for all messages exchanged between ElevenLabs clients and various APIs (Agents, Scribe). Types are automatically generated from AsyncAPI specifications to ensure they stay in sync with the API contracts.
+This package provides strongly-typed interfaces for all messages exchanged between Conversales clients and various APIs. Types are automatically generated from AsyncAPI specifications to ensure they stay in sync with the API contracts.
 
 ## Usage
 
@@ -50,7 +50,7 @@ const audio: Audio = {
 
 The types are organized into two main categories:
 
-- **`Incoming`** - Messages received from the ElevenLabs server
+- **`Incoming`** - Messages received from the Conversales server
   - **Agent API:**
     - `AudioClientEvent` - Audio data from the agent
     - `AudioAlignmentEvent` - Character-level timing data embedded in audio events for text-to-speech synchronization
@@ -65,7 +65,7 @@ The types are organized into two main categories:
     - `ScribeErrorMessage` - Error events
     - `ScribeAuthErrorMessage` - Authentication errors
 
-- **`Outgoing`** - Messages sent to the ElevenLabs server
+- **`Outgoing`** - Messages sent to the Conversales server
   - **Agent API:**
     - `UserMessage` - Text messages from the user
     - `UserFeedback` - User feedback (like/dislike)

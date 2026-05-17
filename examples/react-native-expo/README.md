@@ -1,6 +1,6 @@
-# ElevenLabs React Native Example
+# Conversales React Native Example
 
-A minimal React Native Expo app demonstrating the ElevenLabs React Native SDK for voice conversations.
+A minimal React Native Expo app demonstrating the Conversales React Native SDK for voice conversations.
 
 ## Prerequisites
 
@@ -14,11 +14,11 @@ A minimal React Native Expo app demonstrating the ElevenLabs React Native SDK fo
 cp .env.example .env
 ```
 
-Follow the ElevenAgents [quickstart guide](https://elevenlabs.io/docs/eleven-agents/quickstart) to create an agent and set your agent ID in the `.env` file.
+Create an agent in Conversales and set your agent ID in the `.env` file.
 
 ### Security consideration
 
-This example uses a public agent ID for demonstration purposes. In a production app, you should generate a short lived signed URL in a secure server-side environment, see our [docs](https://elevenlabs.io/docs/conversational-ai/customization/authentication).
+This example uses a public agent ID for demonstration purposes. In a production app, you should generate a short lived signed URL in a secure server-side environment.
 
 ## Installation
 
@@ -84,7 +84,7 @@ In the Extended Controls panel, enable "Virtual microphone uses host audio input
 
 ## Web
 
-Note that React Native Web is currently not supported. For web implementations please use the [ElevenLabs React SDK](https://elevenlabs.io/docs/conversational-ai/libraries/react).
+Note that React Native Web is currently not supported. For web implementations, use the React SDK in this repo.
 
 ## Troubleshooting
 

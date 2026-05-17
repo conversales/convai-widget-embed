@@ -1,7 +1,7 @@
 {
   "name": "@elevenlabs/react",
   "version": "1.6.0",
-  "description": "ElevenLabs React Library",
+  "description": "Conversales React Library",
   "type": "module",
   "types": "./dist/index.d.ts",
   "exports": {
@@ -27,7 +27,7 @@
     "test": "vitest"
   },
   "keywords": [],
-  "author": "ElevenLabs",
+  "author": "Conversales",
   "license": "MIT",
   "dependencies": {
     "@elevenlabs/client": "workspace:*"

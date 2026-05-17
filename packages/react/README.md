@@ -1,14 +1,10 @@
 ![hero](../../assets/hero.png)
 
-# ElevenAgents React SDK
+# Conversales React SDK
 
-Build multimodal agents with the [ElevenAgents platform](https://elevenlabs.io/docs/eleven-agents/overview).
+Build multimodal agents with the [Conversales platform](https://conversales.in).
 
-A React library for building voice and text conversations with ElevenAgents. For React Native, use [`@elevenlabs/react-native`](https://www.npmjs.com/package/@elevenlabs/react-native).
-
-![LOGO](https://github.com/elevenlabs/elevenlabs-python/assets/12028621/21267d89-5e82-4e7e-9c81-caf30b237683)
-[![Discord](https://badgen.net/badge/black/ElevenLabs/icon?icon=discord&label)](https://discord.gg/elevenlabs)
-[![Twitter](https://badgen.net/badge/black/ElevenLabs/icon?icon=twitter&label)](https://twitter.com/ElevenLabs)
+A React library for building voice and text conversations with Conversales. For React Native, use the companion package in this repo.
 
 ## Installation
 
@@ -60,9 +56,9 @@ function Conversation() {
 
 ## Documentation
 
-For the full API reference including connection types, client tools, conversation overrides, and more, see the [React SDK documentation](https://elevenlabs.io/docs/eleven-agents/libraries/react).
+For product details and repo-level guidance, see the root README or visit [conversales.in](https://conversales.in).
 
-For real-time speech-to-text with the `useScribe` hook, see the [Scribe documentation](https://elevenlabs.io/docs/eleven-api/guides/how-to/speech-to-text/realtime/client-side-streaming).
+For real-time speech-to-text with the `useScribe` hook, review the client package and API docs referenced from the repo root.
 
 ## Development
 

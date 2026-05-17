@@ -7,7 +7,6 @@ import { useTextContents } from "../contexts/text-contents";
 import { SheetLanguageSelect } from "./SheetLanguageSelect";
 import { useWidgetSize } from "../contexts/widget-size";
 import { ConversationModeToggleButton } from "./ConversationModeToggleButton";
-import { DismissButton } from "../components/DismissButton";
 import { BrandIcon } from "./BrandIcon";
 import { StatusLabel } from "./StatusLabel";
 
@@ -75,10 +74,18 @@ export function SheetHeader({
             />
           </InOutTransition>
           <InOutTransition active={!!onDismiss}>
-            <DismissButton
-              onDismiss={onDismiss}
-              className="h-8 w-8 border border-base-border bg-transparent px-0 text-base-primary shadow-none transition-opacity data-hidden:opacity-0 hover:bg-base-hover hover:border-base-border active:bg-base-active"
-            />
+            <button
+              type="button"
+              aria-label="Dismiss"
+              onClick={event => {
+                event.preventDefault();
+                event.stopPropagation();
+                onDismiss?.();
+              }}
+              className="appearance-none inline-flex h-8 w-8 items-center justify-center rounded-full border-0 bg-transparent p-0 text-base-primary shadow-none outline-hidden transition-[background-color,opacity] duration-200 data-hidden:opacity-0 hover:bg-base-hover active:bg-base-active"
+            >
+              <Icon name="x" />
+            </button>
           </InOutTransition>
         </div>
       </div>

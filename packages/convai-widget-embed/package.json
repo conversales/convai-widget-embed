@@ -13,8 +13,11 @@
     "lint:es": "pnpm exec eslint .",
     "lint:prettier": "prettier 'src/**/*.ts'"
   },
+  "files": [
+    "dist"
+  ],
   "keywords": [],
-  "author": "ElevenLabs",
+  "author": "Conversales",
   "license": "MIT",
   "devDependencies": {
     "@conversales/convai-widget-core": "workspace:*",

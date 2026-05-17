@@ -20,7 +20,7 @@
     "dist"
   ],
   "keywords": [],
-  "author": "ElevenLabs",
+  "author": "Conversales",
   "license": "MIT",
   "devDependencies": {
     "@preact/preset-vite": "^2.10.5",
