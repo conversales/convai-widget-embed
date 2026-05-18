@@ -37,12 +37,20 @@ export function StatusLabel({
   ...props
 }: HTMLAttributes<HTMLDivElement>) {
   const { status, isSpeaking } = useConversation();
+  const { isVoiceMode } = useConversationMode();
+  const isConversationTextOnly = useIsConversationTextOnly();
   const currentLabel = useStatusLabelText();
 
   const [label, setLabel] = useState(currentLabel.peek());
   useSignalEffect(() => {
     const label = currentLabel.value;
-    if (status.value === "connected" && isSpeaking.value) {
+    const shouldDelayUpdate =
+      status.value === "connected" &&
+      isVoiceMode.value &&
+      !isConversationTextOnly.value &&
+      !isSpeaking.value;
+
+    if (!shouldDelayUpdate) {
       setLabel(label);
     } else {
       const timeout = setTimeout(() => {

@@ -25,9 +25,35 @@ import { useConversation } from "./conversation";
 const WidgetConfigContext = createContext<ReadonlySignal<WidgetConfig> | null>(
   null
 );
+const WidgetAvailabilityContext =
+  createContext<ReadonlySignal<WidgetAvailability> | null>(null);
+
+export const DEFAULT_WIDGET_AVAILABILITY_MESSAGE =
+  "Usage limit has been reached. Please recharge to continue.";
+const DEFAULT_WIDGET_AVAILABILITY = {
+  checking: false,
+  allowed: true,
+  message: null,
+} satisfies WidgetAvailability;
+const WIDGET_AVAILABILITY_API_BASE_URL = "https://api.conversales.in";
+const widgetAvailabilityCache = new Map<string, WidgetAvailability>();
 
 interface WidgetConfigProviderProps {
   children: ComponentChildren;
+}
+
+export interface WidgetAvailability {
+  checking: boolean;
+  allowed: boolean;
+  message: string | null;
+}
+
+export function getWidgetAvailabilityMessage(
+  message: string | null | undefined
+) {
+  return typeof message === "string" && message.trim()
+    ? message.trim()
+    : DEFAULT_WIDGET_AVAILABILITY_MESSAGE;
 }
 
 export function WidgetConfigProvider({ children }: WidgetConfigProviderProps) {
@@ -36,6 +62,9 @@ export function WidgetConfigProvider({ children }: WidgetConfigProviderProps) {
   const overrideConfig = useAttribute("override-config");
   const signedUrl = useAttribute("signed-url");
   const fetchedConfig = useSignal<WidgetConfig | null>(null);
+  const availability = useSignal<WidgetAvailability>(
+    DEFAULT_WIDGET_AVAILABILITY
+  );
 
   useSignalEffect(() => {
     if (overrideConfig.value) {
@@ -82,6 +111,50 @@ export function WidgetConfigProvider({ children }: WidgetConfigProviderProps) {
         );
         if (!abort.signal.aborted) {
           fetchedConfig.value = null;
+        }
+      });
+
+    return () => {
+      abort.abort();
+    };
+  });
+
+  useSignalEffect(() => {
+    let currentAgentId: string | undefined = agentId.value;
+    if (signedUrl.value) {
+      const params = new URL(signedUrl.value).searchParams;
+      currentAgentId = params.get("agent_id") ?? agentId.value;
+    }
+
+    if (!currentAgentId) {
+      availability.value = DEFAULT_WIDGET_AVAILABILITY;
+      return;
+    }
+
+    const cachedAvailability = widgetAvailabilityCache.get(currentAgentId);
+    if (cachedAvailability) {
+      availability.value = cachedAvailability;
+      return;
+    }
+
+    const abort = new AbortController();
+    availability.value = {
+      ...DEFAULT_WIDGET_AVAILABILITY,
+      checking: true,
+    };
+
+    fetchWidgetAvailability(currentAgentId, abort.signal)
+      .then(state => {
+        if (abort.signal.aborted) {
+          return;
+        }
+
+        widgetAvailabilityCache.set(currentAgentId, state);
+        availability.value = state;
+      })
+      .catch(() => {
+        if (!abort.signal.aborted) {
+          availability.value = DEFAULT_WIDGET_AVAILABILITY;
         }
       });
 
@@ -184,13 +257,19 @@ export function WidgetConfigProvider({ children }: WidgetConfigProviderProps) {
 
   return (
     <WidgetConfigContext.Provider value={value as ReadonlySignal<WidgetConfig>}>
-      {children}
+      <WidgetAvailabilityContext.Provider value={availability}>
+        {children}
+      </WidgetAvailabilityContext.Provider>
     </WidgetConfigContext.Provider>
   );
 }
 
 export function useWidgetConfig() {
   return useContextSafely(WidgetConfigContext);
+}
+
+export function useWidgetAvailability() {
+  return useContextSafely(WidgetAvailabilityContext);
 }
 
 export function useTextOnly() {
@@ -250,7 +329,8 @@ export function useLocalizedTerms() {
   const { language } = useLanguageConfig();
 
   return useComputed(() => {
-    const languagePreset = config.value.language_presets?.[language.value.languageCode];
+    const languagePreset =
+      config.value.language_presets?.[language.value.languageCode];
 
     return {
       terms_html: languagePreset?.terms_html ?? config.value.terms_html,
@@ -341,8 +421,8 @@ export function useSyntaxTheme() {
 export function useAllowEvents() {
   const allowEvents = useAttribute("allow-events");
   return useComputed(() => {
-    return parseBoolAttribute(allowEvents.value) ?? false
-  })
+    return parseBoolAttribute(allowEvents.value) ?? false;
+  });
 }
 
 async function fetchConfig(
@@ -362,4 +442,43 @@ async function fetchConfig(
     throw new Error("Response does not contain widget_config");
   }
   return data.widget_config;
+}
+
+async function fetchWidgetAvailability(
+  agentId: string,
+  signal: AbortSignal
+): Promise<WidgetAvailability> {
+  try {
+    const response = await fetch(
+      `${WIDGET_AVAILABILITY_API_BASE_URL}/api/v1/widget/checkAvailability?agentId=${encodeURIComponent(agentId)}`,
+      {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        signal,
+      }
+    );
+
+    const payload = await response.json().catch(() => null);
+    const data =
+      payload && typeof payload === "object" ? (payload.data ?? payload) : {};
+    const message = getWidgetAvailabilityMessage(
+      typeof data.message === "string" ? data.message : null
+    );
+
+    if (!response.ok) {
+      return {
+        checking: false,
+        allowed: false,
+        message,
+      };
+    }
+
+    return {
+      checking: false,
+      allowed: data.allowed !== false,
+      message: data.allowed === false ? message : null,
+    };
+  } catch {
+    return DEFAULT_WIDGET_AVAILABILITY;
+  }
 }

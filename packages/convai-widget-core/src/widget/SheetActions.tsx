@@ -15,9 +15,11 @@ import { SizeTransition } from "../components/SizeTransition";
 import { useConversation } from "../contexts/conversation";
 import { useTextContents } from "../contexts/text-contents";
 import {
+  getWidgetAvailabilityMessage,
   useFileInputMaxFiles,
   useIsConversationTextOnly,
   useTextInputEnabled,
+  useWidgetAvailability,
 } from "../contexts/widget-config";
 import { cn } from "../utils/cn";
 import { CallButton } from "./CallButton";
@@ -37,6 +39,7 @@ export function SheetActions({
 }) {
   const textInputEnabled = useTextInputEnabled();
   const leadCaptureRequired = useLeadCaptureRequired();
+  const availability = useWidgetAvailability();
   const maxFiles = useFileInputMaxFiles();
   const userMessage = useSignal("");
   const isFocused = useSignal(false);
@@ -80,6 +83,17 @@ export function SheetActions({
       !hasReachedLimit.value &&
       status.value === "connected"
   );
+  const availabilityMessage = useComputed(() => {
+    if (availability.value.checking) {
+      return "Checking availability...";
+    }
+
+    if (!availability.value.allowed) {
+      return getWidgetAvailabilityMessage(availability.value.message);
+    }
+
+    return null;
+  });
 
   const handleFileSelect = useCallback(
     (file: File) => {
@@ -99,7 +113,11 @@ export function SheetActions({
   );
 
   const canSend = useComputed(() => {
-    if (leadCaptureRequired.value) {
+    if (
+      leadCaptureRequired.value ||
+      availability.value.checking ||
+      !availability.value.allowed
+    ) {
       return false;
     }
 
@@ -168,6 +186,13 @@ export function SheetActions({
             {fileError.value}
           </div>
         )}
+        {availabilityMessage.value && (
+          <div
+            className={`w-full px-1 pb-1.5 text-xs text-center ${availability.value.allowed ? "text-base-subtle" : "text-base-error"}`}
+          >
+            {availabilityMessage.value}
+          </div>
+        )}
         {textInputEnabled.value && (
           <div
             className={cn(
@@ -187,7 +212,11 @@ export function SheetActions({
               userMessage={userMessage}
               isFocused={isFocused}
               canSend={canSend}
-              disabled={leadCaptureRequired.value}
+              disabled={
+                leadCaptureRequired.value ||
+                availability.value.checking ||
+                !availability.value.allowed
+              }
               onSendMessage={handleSendMessage}
             />
             <div className="absolute bottom-0 left-0 right-0 flex gap-1.5 items-center justify-end px-3 pb-3 pt-2 pointer-events-none">
@@ -236,6 +265,7 @@ function SheetTextarea({
   const text = useTextContents();
   const textOnly = useIsConversationTextOnly();
   const leadCaptureRequired = useLeadCaptureRequired();
+  const availability = useWidgetAvailability();
   const { isDisconnected, conversationIndex, sendUserActivity } =
     useConversation();
 
@@ -281,13 +311,17 @@ function SheetTextarea({
       onFocus={handleFocus}
       onBlur={handleBlur}
       placeholder={
-        leadCaptureRequired.value
-          ? text.lead_capture_title.value
-          : textOnly.value
-            ? isDisconnected.value && conversationIndex.value > 0
-              ? text.input_placeholder_new_conversation.value
-              : text.input_placeholder_text_only.value
-            : text.input_placeholder.value
+        availability.value.checking
+          ? "Checking availability..."
+          : !availability.value.allowed
+            ? "Chat is temporarily unavailable"
+            : leadCaptureRequired.value
+              ? text.lead_capture_title.value
+              : textOnly.value
+                ? isDisconnected.value && conversationIndex.value > 0
+                  ? text.input_placeholder_new_conversation.value
+                  : text.input_placeholder_text_only.value
+                : text.input_placeholder.value
       }
       className="w-full h-full resize-none bg-base leading-5 outline-hidden text-sm text-base-primary placeholder:text-base-subtle disabled:cursor-not-allowed disabled:text-base-subtle p-3 pb-[60px] min-h-18 max-h-full field-sizing-content"
     />

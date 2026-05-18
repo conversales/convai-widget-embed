@@ -93,7 +93,7 @@ describe("Dismiss Button", () => {
       }
     );
 
-    it("expandable widget should hide all elements when dismissed", async () => {
+    it("expandable widget should collapse back to the trigger when dismissed", async () => {
       setupWebComponent({
         "agent-id": "basic",
         variant: "compact",
@@ -105,18 +105,18 @@ describe("Dismiss Button", () => {
       const dismissButton = page.getByRole("button", { name: "Dismiss" });
       await dismissButton.click();
 
-      // Both widget and expandable elements should be gone
+      // The sheet should collapse, but the trigger should remain visible.
       await expect
         .element(page.getByRole("button", { name: "Start a call" }))
-        .not.toBeInTheDocument();
+        .toBeVisible();
       await expect
         .element(page.getByRole("textbox", { name: "Text message input" }))
         .not.toBeInTheDocument();
 
-      // Orb should be visible
+      // The widget should collapse to the trigger rather than the orb.
       await expect
         .element(page.getByRole("button", { name: "Open chat" }))
-        .toBeVisible();
+        .not.toBeInTheDocument();
     });
   });
 

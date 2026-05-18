@@ -2,7 +2,10 @@ import { useComputed, useSignal, useSignalEffect } from "@preact/signals";
 import { useCallback } from "preact/compat";
 import { useConversation } from "../contexts/conversation";
 import { useTextContents } from "../contexts/text-contents";
-import { useLeadsCaptureEnabled } from "../contexts/widget-config";
+import {
+  useLeadsCaptureEnabled,
+  useWidgetAvailability,
+} from "../contexts/widget-config";
 
 export function isLeadCaptureMessage(message: string) {
   const lines = message
@@ -43,10 +46,10 @@ export function LeadCaptureForm() {
   const { isDisconnected, sendUserMessage, startSession, conversationIndex } =
     useConversation();
   const leadCaptureRequired = useLeadCaptureRequired();
+  const availability = useWidgetAvailability();
   const name = useSignal("");
   const phoneNumber = useSignal("");
   const email = useSignal("");
-
   useSignalEffect(() => {
     conversationIndex.value;
     name.value = "";
@@ -55,7 +58,11 @@ export function LeadCaptureForm() {
   });
 
   const isValid =
-    !!name.value.trim() && !!phoneNumber.value.trim() && !!email.value.trim();
+    !!name.value.trim() &&
+    !!phoneNumber.value.trim() &&
+    !!email.value.trim() &&
+    !availability.value.checking &&
+    availability.value.allowed;
 
   const handleSubmit = useCallback(
     async (event: Event) => {
@@ -78,10 +85,22 @@ export function LeadCaptureForm() {
 
       sendUserMessage(message);
     },
-    [email, isDisconnected, isValid, name, phoneNumber, sendUserMessage, startSession]
+    [
+      email,
+      isDisconnected,
+      isValid,
+      name,
+      phoneNumber,
+      sendUserMessage,
+      startSession,
+    ]
   );
 
   if (!leadCaptureRequired.value) {
+    return null;
+  }
+
+  if (!availability.value.checking && !availability.value.allowed) {
     return null;
   }
 
@@ -96,6 +115,7 @@ export function LeadCaptureForm() {
       <div className="flex flex-col gap-2.5">
         <input
           type="text"
+          disabled={availability.value.checking || !availability.value.allowed}
           value={name.value}
           onInput={event => {
             name.value = event.currentTarget.value;
@@ -105,6 +125,7 @@ export function LeadCaptureForm() {
         />
         <input
           type="tel"
+          disabled={availability.value.checking || !availability.value.allowed}
           value={phoneNumber.value}
           onInput={event => {
             phoneNumber.value = event.currentTarget.value;
@@ -114,6 +135,7 @@ export function LeadCaptureForm() {
         />
         <input
           type="email"
+          disabled={availability.value.checking || !availability.value.allowed}
           value={email.value}
           onInput={event => {
             email.value = event.currentTarget.value;

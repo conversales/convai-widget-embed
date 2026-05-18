@@ -14,7 +14,12 @@ import FingerprintJS from "@fingerprintjs/fingerprintjs";
 
 import { useContextSafely } from "../utils/useContextSafely";
 import { useTerms } from "./terms";
-import { useFirstMessage, useWidgetConfig } from "./widget-config";
+import {
+  getWidgetAvailabilityMessage,
+  useFirstMessage,
+  useWidgetAvailability,
+  useWidgetConfig,
+} from "./widget-config";
 import { ConversationMode } from "./conversation-mode";
 import { useShadowHost } from "./shadow-host";
 
@@ -144,6 +149,7 @@ function useConversationSetup() {
   const shadowHost = useShadowHost();
 
   const widgetConfig = useWidgetConfig();
+  const availability = useWidgetAvailability();
   const firstMessage = useFirstMessage();
   const terms = useTerms();
   const config = useSessionConfig();
@@ -221,6 +227,22 @@ function useConversationSetup() {
           );
         }
 
+        if (!availability.value.allowed) {
+          const message = getWidgetAvailabilityMessage(
+            availability.value.message
+          );
+          error.value = message;
+          transcript.value = [
+            ...transcript.peek(),
+            {
+              type: "error",
+              message,
+              conversationIndex: conversationIndex.peek(),
+            },
+          ];
+          return;
+        }
+
         conversationTextOnly.value = processedConfig.textOnly ?? false;
         transcript.value = initialMessage
           ? [
@@ -295,10 +317,7 @@ function useConversationSetup() {
                 return;
               }
 
-              if (
-                firstMessage.peek() &&
-                !receivedFirstMessageRef.current
-              ) {
+              if (firstMessage.peek() && !receivedFirstMessageRef.current) {
                 // Text mode is always started by the user sending a text message.
                 // We need to ignore the first agent message as it is immediately
                 // interrupted by the user input.
@@ -482,7 +501,7 @@ function useConversationSetup() {
         conversationRef.current?.sendUserActivity();
       },
       sendContextualUpdate: (text: string) => {
-        conversationRef.current?.sendContextualUpdate(text)
+        conversationRef.current?.sendContextualUpdate(text);
       },
       addModeToggleEntry: (mode: ConversationMode) => {
         // Only add entry if conversation is active
