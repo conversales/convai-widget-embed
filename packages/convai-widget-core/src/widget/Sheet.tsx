@@ -19,6 +19,7 @@ import { useSheetContent } from "../contexts/sheet-content";
 import { useWidgetSize } from "../contexts/widget-size";
 import { SheetActions } from "./SheetActions";
 import { AvatarOverlay } from "./AvatarOverlay";
+import { useLeadCaptureRequired } from "./LeadCaptureForm";
 
 interface SheetProps {
   open: Signalish<boolean>;
@@ -44,6 +45,7 @@ export function Sheet({ open, onDismiss }: SheetProps) {
   const firstMessage = useFirstMessage();
   const { currentContent, currentConfig } = useSheetContent();
   const { variant } = useWidgetSize();
+  const leadCaptureRequired = useLeadCaptureRequired();
 
   const filteredTranscript = useComputed<DisplayTranscriptEntry[]>(() => {
     const isTextOnly = textOnly.value || isConversationTextOnly.value;
@@ -61,6 +63,7 @@ export function Sheet({ open, onDismiss }: SheetProps) {
   });
   const showTranscript = useComputed(
     () =>
+      leadCaptureRequired.value ||
       filteredTranscript.value.length > 0 ||
       (!isDisconnected.value && config.value.transcript_enabled)
   );
@@ -109,7 +112,7 @@ export function Sheet({ open, onDismiss }: SheetProps) {
         <SheetHeader
           showBackButton={currentConfig.showHeaderBack}
           onBackClick={currentConfig.onHeaderBack}
-          onDismiss={onDismiss}
+          onDismiss={isDisconnected.value ? onDismiss : undefined}
           showStatusLabel={showStatusLabel}
           showLanguageSelector={showLanguageSelector}
           showConversationModeToggle={showConversationModeToggle}

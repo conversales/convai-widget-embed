@@ -1,14 +1,13 @@
-import { ReadonlySignal, useComputed } from "@preact/signals";
+import { ReadonlySignal } from "@preact/signals";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { InOutTransition } from "../components/InOutTransition";
-import { useConversation } from "../contexts/conversation";
 import { useTextContents } from "../contexts/text-contents";
 import { SheetLanguageSelect } from "./SheetLanguageSelect";
-import { useWidgetSize } from "../contexts/widget-size";
 import { ConversationModeToggleButton } from "./ConversationModeToggleButton";
-import { BrandIcon } from "./BrandIcon";
 import { StatusLabel } from "./StatusLabel";
+import { Avatar } from "../components/Avatar";
+import { useAttribute } from "../contexts/attributes";
 
 interface SheetHeaderProps {
   showBackButton: boolean;
@@ -30,15 +29,15 @@ export function SheetHeader({
   showExpandButton,
 }: SheetHeaderProps) {
   const text = useTextContents();
-  const { toggleSize, variant } = useWidgetSize();
-  const { transcript, conversationIndex } = useConversation();
+  const agentName = useAttribute("agent-name");
+  const displayName = agentName.value?.trim() || "Conversales AI";
 
   return (
     <div className="sheet-header-on-accent w-full relative shrink-0 z-10 border-b border-base-border/70 bg-transparent">
-      <div className="h-16 absolute top-0 w-full bg-transparent" />
-      <div className="h-4 absolute top-16 w-full bg-gradient-to-b from-base to-transparent backdrop-blur-[1px] [mask-image:linear-gradient(to_bottom,black,transparent)] shadow-scroll-fade-bottom" />
-      <div className="relative flex min-h-16 items-start justify-between gap-3 px-4 py-3">
-        <div className="flex min-w-0 items-center gap-3 pe-20">
+      <div className="h-[72px] absolute top-0 w-full bg-transparent" />
+      <div className="h-4 absolute top-[72px] w-full bg-gradient-to-b from-base to-transparent backdrop-blur-[1px] [mask-image:linear-gradient(to_bottom,black,transparent)] shadow-scroll-fade-bottom" />
+      <div className="relative flex min-h-[72px] items-center justify-between gap-3 px-4 py-2">
+        <div className="flex min-w-0 items-center gap-2.5 pe-20">
           {showBackButton && (
             <Button
               variant="ghost"
@@ -49,10 +48,27 @@ export function SheetHeader({
               <Icon name="chevron-up" className="-rotate-90" size="xs" />
             </Button>
           )}
-          <BrandIcon className="h-7 w-7 shadow-sm" />
+          <div
+            className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full p-px"
+            style={{
+              backgroundColor: "#ffffff",
+              border: "1px solid #ffffff",
+              backgroundClip: "padding-box",
+              boxShadow:
+                "inset 0 0 0 999px #ffffff, 0 0 0 1px #ffffff, 0 0 0 3px color-mix(in srgb, var(--el-accent) 22%, transparent), 0 0 18px color-mix(in srgb, var(--el-accent) 42%, transparent), 0 1px 3px rgba(15, 23, 42, 0.18)",
+            }}
+          >
+            <Avatar
+              size="header"
+              imageScale={1.12}
+              backgroundColor="#ffffff"
+              imageBackgroundColor="#ffffff"
+              className="overflow-hidden rounded-full"
+            />
+          </div>
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold text-base-primary">
-              Conversales AI
+              {displayName}
             </div>
             <InOutTransition active={showStatusLabel}>
               <div className="mt-1 transition-[opacity,transform] duration-200 data-hidden:opacity-0 data-hidden:-translate-y-1">

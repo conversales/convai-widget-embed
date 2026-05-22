@@ -1,11 +1,20 @@
-import { useComputed, useSignal, useSignalEffect } from "@preact/signals";
+import {
+  signal,
+  useComputed,
+  useSignal,
+  useSignalEffect,
+} from "@preact/signals";
 import { useCallback } from "preact/compat";
 import { useConversation } from "../contexts/conversation";
+import { useAttribute } from "../contexts/attributes";
 import { useTextContents } from "../contexts/text-contents";
 import {
   useLeadsCaptureEnabled,
   useWidgetAvailability,
 } from "../contexts/widget-config";
+
+const leadCaptureCompletionVersion = signal(0);
+const leadCaptureCompletedAgentKeys = new Set<string>();
 
 export function isLeadCaptureMessage(message: string) {
   const lines = message
@@ -23,10 +32,17 @@ export function isLeadCaptureMessage(message: string) {
 
 export function useLeadCaptureRequired() {
   const leadsCaptureEnabled = useLeadsCaptureEnabled();
-  const { transcript, conversationIndex } = useConversation();
+  const { transcript } = useConversation();
+  const agentId = useAttribute("agent-id");
+  const signedUrl = useAttribute("signed-url");
 
   return useComputed(() => {
     if (!leadsCaptureEnabled.value) {
+      return false;
+    }
+
+    leadCaptureCompletionVersion.value;
+    if (isLeadCaptureCompleted(agentId.value, signedUrl.value)) {
       return false;
     }
 
@@ -34,7 +50,6 @@ export function useLeadCaptureRequired() {
       entry =>
         entry.type === "message" &&
         entry.role === "user" &&
-        entry.conversationIndex === conversationIndex.value &&
         typeof entry.message === "string" &&
         isLeadCaptureMessage(entry.message)
     );
@@ -45,6 +60,8 @@ export function LeadCaptureForm() {
   const text = useTextContents();
   const { isDisconnected, sendUserMessage, startSession, conversationIndex } =
     useConversation();
+  const agentId = useAttribute("agent-id");
+  const signedUrl = useAttribute("signed-url");
   const leadCaptureRequired = useLeadCaptureRequired();
   const availability = useWidgetAvailability();
   const name = useSignal("");
@@ -79,19 +96,28 @@ export function LeadCaptureForm() {
       ].join("\n");
 
       if (isDisconnected.value) {
-        await startSession(event.currentTarget as HTMLElement, message);
+        const conversationId = await startSession(
+          event.currentTarget as HTMLElement,
+          message
+        );
+        if (conversationId) {
+          markLeadCaptureCompleted(agentId.value, signedUrl.value);
+        }
         return;
       }
 
       sendUserMessage(message);
+      markLeadCaptureCompleted(agentId.value, signedUrl.value);
     },
     [
+      agentId,
       email,
       isDisconnected,
       isValid,
       name,
       phoneNumber,
       sendUserMessage,
+      signedUrl,
       startSession,
     ]
   );
@@ -107,12 +133,12 @@ export function LeadCaptureForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="mx-8 rounded-[20px] border border-base-border bg-base px-4 py-4 shadow-sm"
+      className="w-full max-w-[260px] self-center rounded-[20px] border border-base-border bg-base px-4 py-3 shadow-sm"
     >
-      <div className="mb-3 text-sm font-medium text-base-primary">
+      <div className="mb-2 text-sm font-medium text-base-primary">
         {text.lead_capture_title}
       </div>
-      <div className="flex flex-col gap-2.5">
+      <div className="flex flex-col gap-2">
         <input
           type="text"
           disabled={availability.value.checking || !availability.value.allowed}
@@ -121,7 +147,7 @@ export function LeadCaptureForm() {
             name.value = event.currentTarget.value;
           }}
           placeholder={text.lead_capture_name.value}
-          className="h-10 rounded-input border border-base-border bg-base px-3 text-sm text-base-primary outline-hidden"
+          className="h-9 rounded-input border border-base-border bg-base px-3 text-sm text-base-primary outline-hidden"
         />
         <input
           type="tel"
@@ -131,7 +157,7 @@ export function LeadCaptureForm() {
             phoneNumber.value = event.currentTarget.value;
           }}
           placeholder={text.lead_capture_phone.value}
-          className="h-10 rounded-input border border-base-border bg-base px-3 text-sm text-base-primary outline-hidden"
+          className="h-9 rounded-input border border-base-border bg-base px-3 text-sm text-base-primary outline-hidden"
         />
         <input
           type="email"
@@ -141,16 +167,52 @@ export function LeadCaptureForm() {
             email.value = event.currentTarget.value;
           }}
           placeholder={text.lead_capture_email.value}
-          className="h-10 rounded-input border border-base-border bg-base px-3 text-sm text-base-primary outline-hidden"
+          className="h-9 rounded-input border border-base-border bg-base px-3 text-sm text-base-primary outline-hidden"
         />
         <button
           type="submit"
           disabled={!isValid}
-          className="mt-1 inline-flex h-10 items-center justify-center rounded-button bg-accent px-4 text-sm font-medium text-accent-primary disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-1 inline-flex h-9 items-center justify-center rounded-button bg-accent px-4 text-sm font-medium text-accent-primary disabled:cursor-not-allowed disabled:opacity-50"
         >
           {text.lead_capture_submit}
         </button>
       </div>
     </form>
   );
+}
+
+function markLeadCaptureCompleted(
+  agentId: string | undefined,
+  signedUrl: string | undefined
+) {
+  leadCaptureCompletedAgentKeys.add(getLeadCaptureAgentKey(agentId, signedUrl));
+  leadCaptureCompletionVersion.value++;
+}
+
+function isLeadCaptureCompleted(
+  agentId: string | undefined,
+  signedUrl: string | undefined
+) {
+  return leadCaptureCompletedAgentKeys.has(
+    getLeadCaptureAgentKey(agentId, signedUrl)
+  );
+}
+
+function getLeadCaptureAgentKey(
+  agentId: string | undefined,
+  signedUrl: string | undefined
+) {
+  if (agentId) {
+    return agentId;
+  }
+
+  if (signedUrl) {
+    try {
+      return new URL(signedUrl).searchParams.get("agent_id") || "default";
+    } catch {
+      return "default";
+    }
+  }
+
+  return "default";
 }

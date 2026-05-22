@@ -18,7 +18,10 @@ interface ExpandableTriggerActionsProps extends ExpandableProps {
   onDismiss?: () => void;
 }
 
-export function ExpandableTriggerActions({ expanded, onDismiss }: ExpandableTriggerActionsProps) {
+export function ExpandableTriggerActions({
+  expanded,
+  onDismiss,
+}: ExpandableTriggerActionsProps) {
   const textOnly = useIsConversationTextOnly();
   const variant = useWidgetConfig().value.variant;
   const { isDisconnected } = useConversation();
@@ -90,7 +93,10 @@ export function ExpandableTriggerActions({ expanded, onDismiss }: ExpandableTrig
             : undefined}
         </Button>
       </SizeTransition>
-      <SizeTransition visible={!!onDismiss} className="p-1">
+      <SizeTransition
+        visible={!!onDismiss && !expanded.value && isDisconnected.value}
+        className="p-1"
+      >
         <DismissButton onDismiss={onDismiss} />
       </SizeTransition>
     </>

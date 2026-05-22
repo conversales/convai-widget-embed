@@ -26,6 +26,7 @@ import { CallButton } from "./CallButton";
 import { TriggerMuteButton } from "./TriggerMuteButton";
 import { useConversationMode } from "../contexts/conversation-mode";
 import { PendingFilePreview } from "./PendingFilePreview";
+import { UploadFileButton } from "./UploadFileButton";
 import { ACCEPTED_FILE_EXTENSIONS, useFileUpload } from "./useFileUpload";
 import { PoweredBy } from "./PoweredBy";
 import { useLeadCaptureRequired } from "./LeadCaptureForm";
@@ -346,6 +347,9 @@ function SheetButtons({
   const textInputEnabled = useTextInputEnabled();
   const { isDisconnected, status } = useConversation();
   const { isTextMode } = useConversationMode();
+  const uploadButtonVisible = useComputed(
+    () => textInputEnabled.value && uploadEnabled.value
+  );
 
   const showCallButton = useComputed(() => {
     return !isDisconnected.value || (!textOnly.value && showTranscript);
@@ -366,6 +370,14 @@ function SheetButtons({
           disabled={
             status.value === "disconnecting" || status.value === "connecting"
           }
+          className="bg-base text-base-primary hover:bg-base-hover active:bg-base-active"
+        />
+      </SizeTransition>
+      <SizeTransition visible={uploadButtonVisible.value}>
+        <UploadFileButton
+          iconOnly
+          onFileSelect={onFileSelect}
+          disabled={!uploadEnabled.value}
           className="bg-base text-base-primary hover:bg-base-hover active:bg-base-active"
         />
       </SizeTransition>

@@ -27,8 +27,8 @@ export function PoweredBy({ inline = false }: PoweredByProps) {
             )
       )}
     >
-      <BrandIcon className="h-4 w-4" />
       <span>Powered by</span>
+      <BrandIcon className="h-4 w-4" />
       <a
         href={config.value.override_link || "https://conversales.in"}
         className="text-base-primary transition-opacity hover:opacity-70 focus-visible:outline-hidden"

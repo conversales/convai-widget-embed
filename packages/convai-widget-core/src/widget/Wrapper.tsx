@@ -121,7 +121,11 @@ export const Wrapper = memo(function Wrapper() {
   };
 
   const handleSheetDismiss = () => {
-    if (!config.value.always_expanded && expandable.value) {
+    if (
+      !config.value.always_expanded &&
+      !config.value.default_expanded &&
+      expandable.value
+    ) {
       expanded.value = false;
       return;
     }
@@ -150,33 +154,40 @@ export const Wrapper = memo(function Wrapper() {
     <>
       <InOutTransition initial={false} active={showConversation}>
         <Root className={className} style={HIDDEN_STYLE}>
-          {config.value.always_expanded ? (
-            <Sheet
-              open
-              onDismiss={showDismiss.value ? handleSheetDismiss : undefined}
-            />
-          ) : (
-            <>
-              {expandable.value && (
-                <Sheet
-                  open={expanded}
-                  onDismiss={showDismiss.value ? handleSheetDismiss : undefined}
-                />
-              )}
-              <div
-                className={cn(
-                  expanded.value &&
-                    (config.value.placement.startsWith("top") ? "mb-3" : "mt-3")
+          {!hidden.value &&
+            (config.value.always_expanded ? (
+              <Sheet
+                open
+                onDismiss={showDismiss.value ? handleSheetDismiss : undefined}
+              />
+            ) : (
+              <>
+                {expandable.value && (
+                  <Sheet
+                    open={expanded}
+                    onDismiss={showDismiss.value ? handleSheetDismiss : undefined}
+                  />
                 )}
-              >
-                <Trigger
-                  expandable={expandable.value}
-                  expanded={expanded}
-                  onDismiss={undefined}
-                />
-              </div>
-            </>
-          )}
+                <div
+                  className={cn(
+                    expanded.value &&
+                      (config.value.placement.startsWith("top") ? "mb-3" : "mt-3")
+                  )}
+                >
+                  <Trigger
+                    expandable={expandable.value}
+                    expanded={expanded}
+                    onDismiss={
+                      showDismiss.value
+                        ? expandable.value
+                          ? handleSheetDismiss
+                          : handleDismiss
+                        : undefined
+                    }
+                  />
+                </div>
+              </>
+            ))}
         </Root>
       </InOutTransition>
       <InOutTransition initial={false} active={showTerms}>

@@ -48,7 +48,7 @@ function AgentMessageBubble({
       <div className="flex flex-col items-start gap-1.5 min-w-0">
         {displayMessage && (
           <WidgetStreamdown
-            className="px-3 py-2.5 rounded-bubble text-sm min-w-0 wrap-break-word whitespace-pre-wrap bg-base-active text-base-primary"
+            className="max-w-[260px] px-3 py-2.5 rounded-bubble text-sm min-w-0 wrap-break-word whitespace-pre-wrap bg-base-active text-base-primary"
             linkConfig={linkConfig.value}
           >
             {displayMessage}

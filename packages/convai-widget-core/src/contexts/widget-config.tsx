@@ -11,6 +11,7 @@ import {
   DefaultStyles,
   parsePlacement,
   parseVariant,
+  type Styles,
   type SyntaxHighlightTheme,
   type WidgetConfig,
 } from "../types/config";
@@ -179,6 +180,8 @@ export function WidgetConfigProvider({ children }: WidgetConfigProviderProps) {
   const useRtc = useAttribute("use-rtc");
   const showAgentStatus = useAttribute("show-agent-status");
   const showConversationId = useAttribute("show-conversation-id");
+  const accentColor = useAttribute("accent-color");
+  const accentPrimaryColor = useAttribute("accent-primary-color");
 
   const value = useComputed<WidgetConfig | null>(() => {
     if (!fetchedConfig.value) {
@@ -231,9 +234,15 @@ export function WidgetConfigProvider({ children }: WidgetConfigProviderProps) {
       parseBoolAttribute(showConversationId.value) ??
       fetchedConfig.value.show_conversation_id ??
       true;
+    const patchedStyles = getStylesWithAccentOverrides(
+      fetchedConfig.value.styles,
+      accentColor.value,
+      accentPrimaryColor.value
+    );
 
     return {
       ...fetchedConfig.value,
+      styles: patchedStyles,
       variant: parseVariant(patchedVariant),
       placement: parsePlacement(patchedPlacement),
       leads_capture: patchedLeadsCapture,
@@ -423,6 +432,51 @@ export function useAllowEvents() {
   return useComputed(() => {
     return parseBoolAttribute(allowEvents.value) ?? false;
   });
+}
+
+function getStylesWithAccentOverrides(
+  styles: WidgetConfig["styles"],
+  accentColor: string | undefined,
+  accentPrimaryColor: string | undefined
+): WidgetConfig["styles"] {
+  const accent = parseColor(accentColor);
+  const accentPrimary = parseColor(accentPrimaryColor);
+
+  if (!accent && !accentPrimary) {
+    return styles;
+  }
+
+  return {
+    ...styles,
+    ...(accent ? getAccentStyleOverrides(accent, accentPrimary) : {}),
+    ...(accentPrimary ? { accent_primary: accentPrimary.toHexString() } : {}),
+  };
+}
+
+function getAccentStyleOverrides(
+  accent: TinyColor,
+  explicitPrimary: TinyColor | null
+): Partial<Styles> {
+  const primary =
+    explicitPrimary?.toHexString() ?? (accent.isDark() ? "#ffffff" : "#111827");
+
+  return {
+    accent: accent.toHexString(),
+    accent_hover: (accent.isDark() ? accent.lighten(7) : accent.darken(7)).toHexString(),
+    accent_active: (accent.isDark() ? accent.darken(7) : accent.darken(13)).toHexString(),
+    accent_border: accent.mix(primary, 28).toHexString(),
+    accent_subtle: accent.mix(primary, 48).toHexString(),
+    accent_primary: primary,
+  };
+}
+
+function parseColor(value: string | undefined): TinyColor | null {
+  if (!value?.trim()) {
+    return null;
+  }
+
+  const color = new TinyColor(value.trim());
+  return color.isValid ? color : null;
 }
 
 async function fetchConfig(

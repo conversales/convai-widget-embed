@@ -44,7 +44,7 @@
 
   [data-variant="compact"] {
     &.sheet {
-      @apply rounded-sheet w-full max-w-[400px] h-[calc(100%-32px)] max-h-[700px];
+      @apply rounded-sheet w-full max-w-[360px] h-[calc(100%-32px)] max-h-[600px];
     }
   }
 

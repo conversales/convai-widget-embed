@@ -29,7 +29,7 @@ export function AvatarOverlay({
       showTranscript.value
         ? "top-4 left-4 scale-[0.1667]"
         : textInputEnabled.value
-          ? "top-[40%] left-1/2 -translate-x-1/2 -translate-y-1/2 scale-100"
+          ? "top-[48%] left-1/2 -translate-x-1/2 -translate-y-1/2 scale-100"
           : "top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 scale-100"
     )
   );
@@ -45,7 +45,7 @@ export function AvatarOverlay({
   return (
     <InOutTransition active={showAvatar}>
       <div className={containerClassName}>
-        <Avatar size="lg" />
+        <Avatar size="md" />
         <InOutTransition active={showStartCallButton}>
           <div className="absolute bottom-0 p-1 rounded-[calc(var(--el-button-radius)+4px)] bg-base left-1/2 -translate-x-1/2 translate-y-1/2 transition-[opacity,transform] data-hidden:opacity-0 data-hidden:scale-100 scale-150">
             <Button

@@ -14,13 +14,14 @@
 
       main {
         min-height: 100vh;
-        display: grid;
-        place-items: center;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
         padding: 24px;
       }
 
       .card {
-        width: min(960px, 100%);
+        width: min(640px, 100%);
         min-height: 80vh;
         background: white;
         border-radius: 20px;
@@ -51,6 +52,83 @@
         display: block;
         margin-bottom: 4px;
       }
+
+      .controls {
+        display: grid;
+        grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto;
+        gap: 12px;
+        align-items: end;
+        margin: 16px 0;
+      }
+
+      .field {
+        display: grid;
+        gap: 6px;
+        color: #374151;
+        font-size: 13px;
+        font-weight: 600;
+      }
+
+      .field input {
+        width: 100%;
+        box-sizing: border-box;
+        border: 1px solid #d1d5db;
+        border-radius: 10px;
+        color: #111827;
+        font: inherit;
+        font-weight: 500;
+        min-height: 40px;
+        padding: 8px 10px;
+      }
+
+      .color-row {
+        display: grid;
+        grid-template-columns: 44px 1fr;
+        gap: 8px;
+      }
+
+      .color-row input[type="color"] {
+        padding: 4px;
+      }
+
+      .controls button {
+        min-height: 40px;
+        border: 0;
+        border-radius: 10px;
+        background: #111827;
+        color: white;
+        cursor: pointer;
+        font: inherit;
+        font-weight: 700;
+        padding: 0 16px;
+      }
+
+      .color-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .swatch {
+        display: inline-block;
+        width: 12px;
+        height: 12px;
+        border: 1px solid rgba(0, 0, 0, 0.18);
+        border-radius: 999px;
+        vertical-align: -1px;
+      }
+
+      @media (min-width: 880px) {
+        main {
+          padding-right: 420px;
+        }
+      }
+
+      @media (max-width: 720px) {
+        .controls {
+          grid-template-columns: 1fr;
+        }
+      }
     </style>
   </head>
   <body>
@@ -59,6 +137,26 @@
         <h1>Conversales unpkg embed test</h1>
         <p>If the package is working, the widget should render on this page.</p>
         <p id="source-label"></p>
+        <form class="controls" id="config-form">
+          <label class="field">
+            Name
+            <input id="agent-name-input" name="name" type="text" />
+          </label>
+          <label class="field">
+            Color
+            <span class="color-row">
+              <input id="theme-color-picker" name="colorPicker" type="color" />
+              <input
+                id="theme-color-input"
+                name="color"
+                type="text"
+                inputmode="text"
+                placeholder="#3656d4"
+              />
+            </span>
+          </label>
+          <button type="submit">Apply</button>
+        </form>
         <div class="status" id="status">
           <strong>Checking widget status...</strong>
           Waiting for the widget bundle to load.
@@ -70,9 +168,27 @@
       const status = document.getElementById("status");
       const sourceLabel = document.getElementById("source-label");
       const widgetRoot = document.getElementById("widget-root");
-      const supportedTags = ["conversales-convai"];
-      const agentId = "agent_4701kqz5wwp2f2av60z3h0knj8hj";
+      const configForm = document.getElementById("config-form");
+      const agentNameInput = document.getElementById("agent-name-input");
+      const themeColorPicker = document.getElementById("theme-color-picker");
+      const themeColorInput = document.getElementById("theme-color-input");
       const searchParams = new URLSearchParams(window.location.search);
+      const defaultAccentColor = "#3656d4";
+      const supportedTags = ["conversales-convai"];
+      const agentId =
+        searchParams.get("agentId") || "agent_1501kq1t1hxzewvb4j1pcfrf902b";
+      const agentName =
+        searchParams.get("name") ||
+        searchParams.get("nam") ||
+        searchParams.get("agentName") ||
+        "";
+      const accentColor =
+        normalizeHexColor(
+          searchParams.get("color") ||
+            searchParams.get("accentColor") ||
+            searchParams.get("accent-color") ||
+            ""
+        ) || defaultAccentColor;
       const source = searchParams.get("source") || "local";
       const leadCapture = searchParams.get("leadCapture") || "on";
       const embedMode = searchParams.get("embedMode") || "widget-attributes";
@@ -86,10 +202,46 @@
       };
       const bundleSrc = bundleSources[source] || bundleSources.local;
 
+      function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, character => {
+          switch (character) {
+            case "&":
+              return "&amp;";
+            case "<":
+              return "&lt;";
+            case ">":
+              return "&gt;";
+            case '"':
+              return "&quot;";
+            case "'":
+              return "&#39;";
+            default:
+              return character;
+          }
+        });
+      }
+
+      function normalizeHexColor(value) {
+        const trimmed = String(value || "").trim();
+        if (!trimmed) {
+          return "";
+        }
+
+        const withHash = trimmed.startsWith("#") ? trimmed : "#" + trimmed;
+        return /^#[0-9a-fA-F]{6}$/.test(withHash)
+          ? withHash.toLowerCase()
+          : "";
+      }
+
       function buildHref(nextSource, nextLeadCapture) {
         const params = new URLSearchParams();
         params.set("source", nextSource);
         params.set("leadCapture", nextLeadCapture);
+        params.set("agentId", agentId);
+        params.set("color", accentColor);
+        if (agentName) {
+          params.set("name", agentName);
+        }
         return "?" + params.toString();
       }
 
@@ -103,10 +255,20 @@
 
       sourceLabel.innerHTML =
         "Source: <strong>" +
-        source +
+        escapeHtml(source) +
         "</strong> · Lead: <strong>" +
-        currentLeadLabel +
+        escapeHtml(currentLeadLabel) +
+        "</strong> · Agent: <strong>" +
+        escapeHtml(agentId) +
         "</strong>" +
+        (agentName
+          ? " · Name: <strong>" + escapeHtml(agentName) + "</strong>"
+          : "") +
+        ' · Color: <span class="color-chip"><span class="swatch" style="background-color: ' +
+        accentColor +
+        '"></span><strong>' +
+        escapeHtml(accentColor) +
+        "</strong></span>" +
         currentModeLabel +
         ' · <a href="' +
         buildHref("local", "on") +
@@ -118,24 +280,99 @@
         buildHref("unpkg", "off") +
         '">unpkg without lead</a>';
 
+      agentNameInput.value = agentName;
+      themeColorPicker.value = accentColor;
+      themeColorInput.value = accentColor;
+
+      function applyControlValuesToWidget() {
+        const widget = widgetRoot.firstElementChild;
+        if (!widget) {
+          return;
+        }
+
+        const nextName = agentNameInput.value.trim();
+        const nextColor = normalizeHexColor(themeColorInput.value) || accentColor;
+
+        if (nextName) {
+          widget.setAttribute("agent-name", nextName);
+        } else {
+          widget.removeAttribute("agent-name");
+        }
+
+        widget.setAttribute("accent-color", nextColor);
+      }
+
+      themeColorPicker.addEventListener("input", () => {
+        themeColorInput.value = themeColorPicker.value;
+        applyControlValuesToWidget();
+      });
+
+      themeColorInput.addEventListener("input", () => {
+        const nextColor = normalizeHexColor(themeColorInput.value);
+        if (nextColor) {
+          themeColorPicker.value = nextColor;
+          applyControlValuesToWidget();
+        }
+      });
+
+      agentNameInput.addEventListener("input", applyControlValuesToWidget);
+
+      configForm.addEventListener("submit", event => {
+        event.preventDefault();
+
+        const nextName = agentNameInput.value.trim();
+        const nextColor = normalizeHexColor(themeColorInput.value) || accentColor;
+        const params = new URLSearchParams(window.location.search);
+
+        params.set("source", source);
+        params.set("leadCapture", leadCapture);
+        params.set("agentId", agentId);
+        params.set("color", nextColor);
+        params.delete("v");
+        params.delete("nam");
+        params.delete("agentName");
+
+        if (nextName) {
+          params.set("name", nextName);
+        } else {
+          params.delete("name");
+        }
+
+        window.location.search = params.toString();
+      });
+
+      function applyWidgetAttributes(widget) {
+        widget.setAttribute("agent-id", agentId);
+        widget.setAttribute("accent-color", accentColor);
+
+        if (agentName) {
+          widget.setAttribute("agent-name", agentName);
+        } else {
+          widget.removeAttribute("agent-name");
+        }
+
+        if (leadCaptureEnabled && !useScriptLeadCapture) {
+          widget.setAttribute("leads-capture", "true");
+        } else {
+          widget.removeAttribute("leads-capture");
+        }
+
+        widget.setAttribute("show-agent-status", "true");
+      }
+
       function renderWidget(tagName) {
         const existingTagName =
           widgetRoot.firstElementChild?.tagName?.toLowerCase();
 
         if (existingTagName === tagName) {
+          applyWidgetAttributes(widgetRoot.firstElementChild);
           return;
         }
 
         widgetRoot.innerHTML = "";
 
         const widget = document.createElement(tagName);
-        widget.setAttribute("agent-id", agentId);
-
-        if (leadCaptureEnabled && !useScriptLeadCapture) {
-          widget.setAttribute("leads-capture", "true");
-        }
-
-        widget.setAttribute("show-agent-status", "true");
+        applyWidgetAttributes(widget);
 
         widgetRoot.appendChild(widget);
       }

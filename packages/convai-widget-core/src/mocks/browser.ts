@@ -196,6 +196,12 @@ function isValidAgentId(agentId: string): agentId is keyof typeof AGENTS {
 }
 
 export const Worker = setupWorker(
+  http.get("https://api.conversales.in/api/v1/widget/checkAvailability", () => {
+    return HttpResponse.json({
+      allowed: true,
+      message: null,
+    });
+  }),
   http.get<{ agentId: string }>(
     `${import.meta.env.VITE_SERVER_URL_US}/v1/convai/agents/:agentId/widget`,
     ({ params }) => {

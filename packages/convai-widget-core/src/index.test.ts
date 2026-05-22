@@ -103,6 +103,48 @@ describe("conversales-convai", () => {
     }
   );
 
+  it("should hide the avatar overlay and use the configured avatar during lead capture", async () => {
+    const widget = setupWebComponent({
+      "agent-id": "basic",
+      "override-config": JSON.stringify({
+        variant: "compact",
+        placement: "bottom-right",
+        leads_capture: true,
+        avatar: {
+          type: "image",
+          url: "https://example.com/uploaded-avatar.png",
+        },
+        feedback_mode: "end",
+        end_feedback: {
+          type: "rating",
+        },
+        language: "en",
+        mic_muting_enabled: false,
+        transcript_enabled: false,
+        text_input_enabled: true,
+        default_expanded: true,
+        always_expanded: false,
+        dismissible: false,
+        text_contents: {},
+        language_presets: {},
+        disable_banner: false,
+        text_only: false,
+        supports_text_only: true,
+        first_message: "",
+        use_rtc: false,
+      }),
+    });
+
+    await expect
+      .element(page.getByText("Share your details to continue"))
+      .toBeInTheDocument();
+
+    expect(
+      widget.shadowRoot?.querySelectorAll('button[aria-label="Start a call"]')
+        .length
+    ).toBe(1);
+  });
+
   it("should not submit text input while IME composition is active", async () => {
     const widget = setupWebComponent({
       "agent-id": "tool_call",

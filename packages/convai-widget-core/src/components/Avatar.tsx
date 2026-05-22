@@ -7,16 +7,32 @@ import { Orb } from "../orb/Orb";
 import { clsx } from "clsx";
 
 const SIZE_CLASSES = {
+  xs: "w-7 h-7",
   sm: "w-9 h-9",
+  header: "w-11 h-11",
+  md: "w-40 h-40",
   lg: "w-48 h-48",
 };
 
 interface AvatarProps {
   size?: keyof typeof SIZE_CLASSES;
   className?: string;
+  backgroundClassName?: string;
+  imageClassName?: string;
+  backgroundColor?: string;
+  imageBackgroundColor?: string;
+  imageScale?: number;
 }
 
-export function Avatar({ size = "sm", className }: AvatarProps) {
+export function Avatar({
+  size = "sm",
+  className,
+  backgroundClassName,
+  imageClassName,
+  backgroundColor,
+  imageBackgroundColor,
+  imageScale = 1,
+}: AvatarProps) {
   const { getInputVolume, getOutputVolume, isSpeaking, isDisconnected } =
     useConversation();
   const { config } = useAvatarConfig();
@@ -26,7 +42,8 @@ export function Avatar({ size = "sm", className }: AvatarProps) {
   useSignalEffect(() => {
     if (isDisconnected.value) {
       backgroundRef.current!.style.transform = "";
-      imageRef.current!.style.transform = "";
+      imageRef.current!.style.transform =
+        imageScale === 1 ? "" : `scale(${imageScale})`;
 
       return;
     }
@@ -40,7 +57,7 @@ export function Avatar({ size = "sm", className }: AvatarProps) {
       const outputScale = !isSpeaking.peek() ? 1 : 1 + outputVolume * 0.4;
 
       backgroundRef.current!.style.transform = `scale(${outputScale})`;
-      imageRef.current!.style.transform = `scale(${inputScale})`;
+      imageRef.current!.style.transform = `scale(${inputScale * imageScale})`;
 
       id = requestAnimationFrame(draw);
     }
@@ -52,6 +69,7 @@ export function Avatar({ size = "sm", className }: AvatarProps) {
   });
 
   const style = useComputed(() => ({
+    backgroundColor: imageBackgroundColor,
     backgroundImage:
       config.value.type === "image"
         ? `url(${config.value.url})`
@@ -64,12 +82,19 @@ export function Avatar({ size = "sm", className }: AvatarProps) {
     <div className={clsx("relative shrink-0", SIZE_CLASSES[size], className)}>
       <div
         ref={backgroundRef}
-        className="absolute inset-0 rounded-full bg-base-border"
+        style={backgroundColor ? { backgroundColor } : undefined}
+        className={clsx(
+          "absolute inset-0 rounded-full bg-base-border",
+          backgroundClassName
+        )}
       />
       <div
         ref={imageRef}
         style={style}
-        className="absolute inset-0 rounded-full overflow-hidden bg-base bg-cover"
+        className={clsx(
+          "absolute inset-0 rounded-full overflow-hidden bg-base bg-cover bg-center",
+          imageClassName
+        )}
       >
         {config.value.type === "orb" && (
           <OrbCanvas
