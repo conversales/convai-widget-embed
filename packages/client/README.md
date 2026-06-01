@@ -25,13 +25,21 @@ const conversation = await Conversation.startSession({
   onDisconnect: () => {
     console.log("Disconnected");
   },
-  onMessage: (message) => {
+  onMessage: message => {
     console.log("Message:", message);
   },
-  onAgentResponseCorrection: ({ original_agent_response, corrected_agent_response }) => {
-    console.log("Agent response corrected:", original_agent_response, "->", corrected_agent_response);
+  onAgentResponseCorrection: ({
+    original_agent_response,
+    corrected_agent_response,
+  }) => {
+    console.log(
+      "Agent response corrected:",
+      original_agent_response,
+      "->",
+      corrected_agent_response
+    );
   },
-  onError: (message) => {
+  onError: message => {
     console.error("Error:", message);
   },
 });

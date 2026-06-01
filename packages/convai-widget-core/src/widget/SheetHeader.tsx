@@ -4,7 +4,6 @@ import { Icon } from "../components/Icon";
 import { InOutTransition } from "../components/InOutTransition";
 import { useTextContents } from "../contexts/text-contents";
 import { SheetLanguageSelect } from "./SheetLanguageSelect";
-import { ConversationModeToggleButton } from "./ConversationModeToggleButton";
 import { StatusLabel } from "./StatusLabel";
 import { Avatar } from "../components/Avatar";
 import { useAttribute } from "../contexts/attributes";
@@ -15,7 +14,6 @@ interface SheetHeaderProps {
   onDismiss?: () => void;
   showStatusLabel: ReadonlySignal<boolean>;
   showLanguageSelector: ReadonlySignal<boolean>;
-  showConversationModeToggle: ReadonlySignal<boolean>;
   showExpandButton: ReadonlySignal<boolean>;
 }
 
@@ -25,12 +23,12 @@ export function SheetHeader({
   onDismiss,
   showStatusLabel,
   showLanguageSelector,
-  showConversationModeToggle,
   showExpandButton,
 }: SheetHeaderProps) {
   const text = useTextContents();
+  const name = useAttribute("name");
   const agentName = useAttribute("agent-name");
-  const displayName = agentName.value?.trim() || "Conversales AI";
+  const displayName = agentName.value?.trim() || name.value?.trim() || "Conversales AI";
 
   return (
     <div className="sheet-header-on-accent w-full relative shrink-0 z-10 border-b border-base-border/70 bg-transparent">
@@ -49,13 +47,13 @@ export function SheetHeader({
             </Button>
           )}
           <div
-            className="flex h-[46px] w-[46px] shrink-0 items-center justify-center rounded-full p-px"
+            className="flex h-[38px] w-[38px] shrink-0 items-center justify-center rounded-full p-[1px]"
             style={{
-              backgroundColor: "#ffffff",
-              border: "1px solid #ffffff",
+              backgroundColor: "rgba(255, 255, 255, 0.96)",
+              border: "1px solid rgba(255, 255, 255, 0.88)",
               backgroundClip: "padding-box",
               boxShadow:
-                "inset 0 0 0 999px #ffffff, 0 0 0 1px #ffffff, 0 0 0 3px color-mix(in srgb, var(--el-accent) 22%, transparent), 0 0 18px color-mix(in srgb, var(--el-accent) 42%, transparent), 0 1px 3px rgba(15, 23, 42, 0.18)",
+                "0 0 0 2px color-mix(in srgb, var(--el-accent) 18%, transparent), 0 0 10px color-mix(in srgb, var(--el-accent) 28%, transparent), 0 1px 3px rgba(15, 23, 42, 0.14)",
             }}
           >
             <Avatar
@@ -82,12 +80,6 @@ export function SheetHeader({
             <div className="transition-[opacity,transform] duration-200 data-hidden:opacity-0 data-hidden:-translate-y-4">
               <SheetLanguageSelect />
             </div>
-          </InOutTransition>
-          <InOutTransition active={showConversationModeToggle}>
-            <ConversationModeToggleButton
-              variant="ghost"
-              className="h-8 w-8 transition-opacity data-hidden:opacity-0"
-            />
           </InOutTransition>
           <InOutTransition active={!!onDismiss}>
             <button

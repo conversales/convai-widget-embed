@@ -6,14 +6,14 @@ Build multimodal voice and text experiences with [Conversales](https://conversal
 
 ## Available Packages
 
-| Package | Purpose |
-| ------- | ------- |
-| [Client](packages/client/README.md) | JavaScript/TypeScript client library |
-| [React](packages/react/README.md) | React hooks and components |
-| [React Native](packages/react-native/README.md) | React Native companion SDK |
-| [Types](packages/types/README.md) | Shared generated types |
-| [Widget Core](packages/convai-widget-core/) | Core widget library for embedding agents |
-| [Widget Embed](packages/convai-widget-embed/) | Pre-bundled embeddable widget |
+| Package                                         | Purpose                                  |
+| ----------------------------------------------- | ---------------------------------------- |
+| [Client](packages/client/README.md)             | JavaScript/TypeScript client library     |
+| [React](packages/react/README.md)               | React hooks and components               |
+| [React Native](packages/react-native/README.md) | React Native companion SDK               |
+| [Types](packages/types/README.md)               | Shared generated types                   |
+| [Widget Core](packages/convai-widget-core/)     | Core widget library for embedding agents |
+| [Widget Embed](packages/convai-widget-embed/)   | Pre-bundled embeddable widget            |
 
 ## Getting Started
 

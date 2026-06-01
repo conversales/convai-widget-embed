@@ -120,6 +120,11 @@ export const Wrapper = memo(function Wrapper() {
     hidden.value = true;
   };
 
+  const handleSheetCollapse = () => {
+    expanded.value = false;
+    hidden.value = false;
+  };
+
   const handleSheetDismiss = () => {
     if (
       !config.value.always_expanded &&
@@ -144,6 +149,9 @@ export const Wrapper = memo(function Wrapper() {
   const showError = useComputed(() => isError.value && !hidden.value);
 
   const showDismiss = useComputed(() => config.value.dismissible);
+  const showSheetDismiss = useComputed(
+    () => showDismiss.value || (expandable.value && !config.value.always_expanded)
+  );
 
   // Show expand button when widget is hidden and dismissible is enabled
   const showExpandButton = useComputed(
@@ -165,7 +173,13 @@ export const Wrapper = memo(function Wrapper() {
                 {expandable.value && (
                   <Sheet
                     open={expanded}
-                    onDismiss={showDismiss.value ? handleSheetDismiss : undefined}
+                    onDismiss={
+                      showSheetDismiss.value
+                        ? showDismiss.value
+                          ? handleSheetDismiss
+                          : handleSheetCollapse
+                        : undefined
+                    }
                   />
                 )}
                 <div

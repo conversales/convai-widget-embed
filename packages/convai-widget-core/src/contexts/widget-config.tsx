@@ -180,6 +180,7 @@ export function WidgetConfigProvider({ children }: WidgetConfigProviderProps) {
   const useRtc = useAttribute("use-rtc");
   const showAgentStatus = useAttribute("show-agent-status");
   const showConversationId = useAttribute("show-conversation-id");
+  const color = useAttribute("color");
   const accentColor = useAttribute("accent-color");
   const accentPrimaryColor = useAttribute("accent-primary-color");
 
@@ -219,7 +220,7 @@ export function WidgetConfigProvider({ children }: WidgetConfigProviderProps) {
       parseBoolAttribute(defaultExpanded.value) ??
       fetchedConfig.value.default_expanded ??
       false;
-    const patchedDismissible = parseBoolAttribute(dismissible.value) ?? true;
+    const patchedDismissible = parseBoolAttribute(dismissible.value) ?? false;
     const patchedStripAudioTags =
       parseBoolAttribute(stripAudioTags.value) ??
       fetchedConfig.value.strip_audio_tags ??
@@ -236,7 +237,7 @@ export function WidgetConfigProvider({ children }: WidgetConfigProviderProps) {
       true;
     const patchedStyles = getStylesWithAccentOverrides(
       fetchedConfig.value.styles,
-      accentColor.value,
+      accentColor.value ?? color.value,
       accentPrimaryColor.value
     );
 
@@ -471,12 +472,28 @@ function getAccentStyleOverrides(
 }
 
 function parseColor(value: string | undefined): TinyColor | null {
-  if (!value?.trim()) {
+  const normalizedValue = normalizeColorValue(value);
+
+  if (!normalizedValue) {
     return null;
   }
 
-  const color = new TinyColor(value.trim());
+  const color = new TinyColor(normalizedValue);
   return color.isValid ? color : null;
+}
+
+function normalizeColorValue(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+
+  if (!trimmed) {
+    return null;
+  }
+
+  if (/^[0-9a-fA-F]{3,4}$|^[0-9a-fA-F]{6}$|^[0-9a-fA-F]{8}$/.test(trimmed)) {
+    return `#${trimmed}`;
+  }
+
+  return trimmed;
 }
 
 async function fetchConfig(

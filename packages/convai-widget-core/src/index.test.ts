@@ -103,6 +103,57 @@ describe("conversales-convai", () => {
     }
   );
 
+  it("should not show the conversation mode switch in the header", async () => {
+    setupWebComponent({
+      "agent-id": "basic",
+      transcript: "true",
+      "text-input": "true",
+      "override-config": JSON.stringify({
+        variant: "full",
+        placement: "bottom-right",
+        avatar: {
+          type: "orb",
+          color_1: "#000000",
+          color_2: "#ffffff",
+        },
+        feedback_mode: "end",
+        end_feedback: {
+          type: "rating",
+        },
+        language: "en",
+        mic_muting_enabled: false,
+        default_expanded: true,
+        always_expanded: false,
+        transcript_enabled: true,
+        text_input_enabled: true,
+        dismissible: false,
+        text_contents: {
+          start_chat: "Start a call",
+        },
+        terms_html: "Test terms",
+        language_presets: {},
+        disable_banner: false,
+        text_only: false,
+        supports_text_only: true,
+        first_message: "Agent response",
+        use_rtc: false,
+        conversation_mode_toggle_enabled: true,
+      }),
+    });
+
+    await expect
+      .element(page.getByRole("button", { name: "Start a call" }))
+      .toBeInTheDocument();
+
+    await expect
+      .element(page.getByRole("button", { name: "Switch to text mode" }))
+      .not.toBeInTheDocument();
+
+    await expect
+      .element(page.getByRole("button", { name: "Switch to voice mode" }))
+      .not.toBeInTheDocument();
+  });
+
   it("should hide the avatar overlay and use the configured avatar during lead capture", async () => {
     const widget = setupWebComponent({
       "agent-id": "basic",
@@ -143,6 +194,28 @@ describe("conversales-convai", () => {
       widget.shadowRoot?.querySelectorAll('button[aria-label="Start a call"]')
         .length
     ).toBe(1);
+
+    expect(
+      widget.shadowRoot?.querySelectorAll('img[alt="AI agent avatar"]').length
+    ).toBe(0);
+
+    await expect
+      .element(page.getByRole("button", { name: "Start a call" }))
+      .toBeDisabled();
+  });
+
+  it("should support name and color aliases directly from HTML attributes", async () => {
+    const widget = setupWebComponent({
+      "agent-id": "basic",
+      transcript: "true",
+      "text-input": "true",
+      "default-expanded": "true",
+      name: "test user",
+      color: "3656d4",
+    });
+
+    await expect.element(page.getByText("test user")).toBeInTheDocument();
+    expect(widget.shadowRoot?.textContent).toContain("--el-accent: #3656d4");
   });
 
   it("should not submit text input while IME composition is active", async () => {
@@ -591,7 +664,7 @@ describe("conversales-convai", () => {
   });
 
   describe("dismissable behavior", () => {
-    it("should show dismiss button by default", async () => {
+    it("should hide dismiss button by default", async () => {
       setupWebComponent({
         "agent-id": "basic",
         variant: "compact",
@@ -600,6 +673,31 @@ describe("conversales-convai", () => {
       await expect
         .element(page.getByRole("button", { name: "Start a call" }))
         .toBeVisible();
+      await expect
+        .element(page.getByRole("button", { name: "Dismiss" }))
+        .not.toBeInTheDocument();
+    });
+
+    it("should show a close button on expandable widgets by default", async () => {
+      setupWebComponent({
+        "agent-id": "basic",
+        variant: "compact",
+        transcript: "true",
+        "text-input": "true",
+        "default-expanded": "true",
+      });
+
+      await expect
+        .element(page.getByRole("button", { name: "Dismiss" }))
+        .toBeVisible();
+
+      const startButton = page.getByRole("button", { name: "Start a call" });
+      await startButton.click();
+
+      await expect.element(page.getByText("Test terms")).toBeInTheDocument();
+      const acceptButton = page.getByRole("button", { name: "Accept" });
+      await acceptButton.click();
+
       await expect
         .element(page.getByRole("button", { name: "Dismiss" }))
         .toBeVisible();

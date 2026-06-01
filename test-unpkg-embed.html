@@ -55,7 +55,7 @@
 
       .controls {
         display: grid;
-        grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto;
+        grid-template-columns: minmax(180px, 1.2fr) minmax(160px, 1fr) minmax(180px, 1fr) auto;
         gap: 12px;
         align-items: end;
         margin: 16px 0;
@@ -139,6 +139,10 @@
         <p id="source-label"></p>
         <form class="controls" id="config-form">
           <label class="field">
+            Agent ID
+            <input id="agent-id-input" name="agentId" type="text" />
+          </label>
+          <label class="field">
             Name
             <input id="agent-name-input" name="name" type="text" />
           </label>
@@ -169,20 +173,21 @@
       const sourceLabel = document.getElementById("source-label");
       const widgetRoot = document.getElementById("widget-root");
       const configForm = document.getElementById("config-form");
+      const agentIdInput = document.getElementById("agent-id-input");
       const agentNameInput = document.getElementById("agent-name-input");
       const themeColorPicker = document.getElementById("theme-color-picker");
       const themeColorInput = document.getElementById("theme-color-input");
       const searchParams = new URLSearchParams(window.location.search);
       const defaultAccentColor = "#3656d4";
       const supportedTags = ["conversales-convai"];
-      const agentId =
+      let currentAgentId =
         searchParams.get("agentId") || "agent_1501kq1t1hxzewvb4j1pcfrf902b";
-      const agentName =
+      let currentAgentName =
         searchParams.get("name") ||
         searchParams.get("nam") ||
         searchParams.get("agentName") ||
         "";
-      const accentColor =
+      let currentAccentColor =
         normalizeHexColor(
           searchParams.get("color") ||
             searchParams.get("accentColor") ||
@@ -235,12 +240,17 @@
 
       function buildHref(nextSource, nextLeadCapture) {
         const params = new URLSearchParams();
+        const nextAgentId = agentIdInput.value.trim() || currentAgentId;
+        const nextName = agentNameInput.value.trim() || currentAgentName;
+        const nextColor =
+          normalizeHexColor(themeColorInput.value) || currentAccentColor;
+
         params.set("source", nextSource);
         params.set("leadCapture", nextLeadCapture);
-        params.set("agentId", agentId);
-        params.set("color", accentColor);
-        if (agentName) {
-          params.set("name", agentName);
+        params.set("agentId", nextAgentId);
+        params.set("color", nextColor);
+        if (nextName) {
+          params.set("name", nextName);
         }
         return "?" + params.toString();
       }
@@ -253,36 +263,41 @@
           ? ""
           : " · Mode: <strong>" + embedMode + "</strong>";
 
-      sourceLabel.innerHTML =
-        "Source: <strong>" +
-        escapeHtml(source) +
-        "</strong> · Lead: <strong>" +
-        escapeHtml(currentLeadLabel) +
-        "</strong> · Agent: <strong>" +
-        escapeHtml(agentId) +
-        "</strong>" +
-        (agentName
-          ? " · Name: <strong>" + escapeHtml(agentName) + "</strong>"
-          : "") +
-        ' · Color: <span class="color-chip"><span class="swatch" style="background-color: ' +
-        accentColor +
-        '"></span><strong>' +
-        escapeHtml(accentColor) +
-        "</strong></span>" +
-        currentModeLabel +
-        ' · <a href="' +
-        buildHref("local", "on") +
-        '">local with lead</a> · <a href="' +
-        buildHref("local", "off") +
-        '">local without lead</a> · <a href="' +
-        buildHref("unpkg", "on") +
-        '">unpkg with lead</a> · <a href="' +
-        buildHref("unpkg", "off") +
-        '">unpkg without lead</a>';
+      function renderSourceLabel() {
+        sourceLabel.innerHTML =
+          "Source: <strong>" +
+          escapeHtml(source) +
+          "</strong> · Lead: <strong>" +
+          escapeHtml(currentLeadLabel) +
+          "</strong> · Agent: <strong>" +
+          escapeHtml(currentAgentId) +
+          "</strong>" +
+          (currentAgentName
+            ? " · Name: <strong>" + escapeHtml(currentAgentName) + "</strong>"
+            : "") +
+          ' · Color: <span class="color-chip"><span class="swatch" style="background-color: ' +
+          currentAccentColor +
+          '"></span><strong>' +
+          escapeHtml(currentAccentColor) +
+          "</strong></span>" +
+          currentModeLabel +
+          ' · <a href="' +
+          buildHref("local", "on") +
+          '">local with lead</a> · <a href="' +
+          buildHref("local", "off") +
+          '">local without lead</a> · <a href="' +
+          buildHref("unpkg", "on") +
+          '">unpkg with lead</a> · <a href="' +
+          buildHref("unpkg", "off") +
+          '">unpkg without lead</a>';
+      }
 
-      agentNameInput.value = agentName;
-      themeColorPicker.value = accentColor;
-      themeColorInput.value = accentColor;
+      renderSourceLabel();
+
+      agentIdInput.value = currentAgentId;
+      agentNameInput.value = currentAgentName;
+      themeColorPicker.value = currentAccentColor;
+      themeColorInput.value = currentAccentColor;
 
       function applyControlValuesToWidget() {
         const widget = widgetRoot.firstElementChild;
@@ -290,8 +305,12 @@
           return;
         }
 
+        const nextAgentId = agentIdInput.value.trim() || currentAgentId;
         const nextName = agentNameInput.value.trim();
-        const nextColor = normalizeHexColor(themeColorInput.value) || accentColor;
+        const nextColor =
+          normalizeHexColor(themeColorInput.value) || currentAccentColor;
+
+        widget.setAttribute("agent-id", nextAgentId);
 
         if (nextName) {
           widget.setAttribute("agent-name", nextName);
@@ -316,17 +335,24 @@
       });
 
       agentNameInput.addEventListener("input", applyControlValuesToWidget);
+      agentIdInput.addEventListener("input", applyControlValuesToWidget);
 
       configForm.addEventListener("submit", event => {
         event.preventDefault();
 
+        const nextAgentId = agentIdInput.value.trim() || currentAgentId;
         const nextName = agentNameInput.value.trim();
-        const nextColor = normalizeHexColor(themeColorInput.value) || accentColor;
+        const nextColor =
+          normalizeHexColor(themeColorInput.value) || currentAccentColor;
         const params = new URLSearchParams(window.location.search);
+
+        currentAgentId = nextAgentId;
+        currentAgentName = nextName;
+        currentAccentColor = nextColor;
 
         params.set("source", source);
         params.set("leadCapture", leadCapture);
-        params.set("agentId", agentId);
+        params.set("agentId", nextAgentId);
         params.set("color", nextColor);
         params.delete("v");
         params.delete("nam");
@@ -338,15 +364,22 @@
           params.delete("name");
         }
 
-        window.location.search = params.toString();
+        window.history.replaceState({}, "", "?" + params.toString());
+        renderSourceLabel();
+
+        const tagName = getRegisteredTag();
+        if (tagName) {
+          renderWidget(tagName, true);
+        }
       });
 
       function applyWidgetAttributes(widget) {
-        widget.setAttribute("agent-id", agentId);
-        widget.setAttribute("accent-color", accentColor);
+        widget.setAttribute("agent-id", agentIdInput.value.trim() || currentAgentId);
+        widget.setAttribute("accent-color", currentAccentColor);
 
-        if (agentName) {
-          widget.setAttribute("agent-name", agentName);
+        const nextName = agentNameInput.value.trim() || currentAgentName;
+        if (nextName) {
+          widget.setAttribute("agent-name", nextName);
         } else {
           widget.removeAttribute("agent-name");
         }
@@ -360,11 +393,11 @@
         widget.setAttribute("show-agent-status", "true");
       }
 
-      function renderWidget(tagName) {
+      function renderWidget(tagName, forceRemount = false) {
         const existingTagName =
           widgetRoot.firstElementChild?.tagName?.toLowerCase();
 
-        if (existingTagName === tagName) {
+        if (existingTagName === tagName && !forceRemount) {
           applyWidgetAttributes(widgetRoot.firstElementChild);
           return;
         }

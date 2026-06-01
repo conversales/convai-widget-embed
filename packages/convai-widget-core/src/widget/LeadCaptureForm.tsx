@@ -130,54 +130,59 @@ export function LeadCaptureForm() {
     return null;
   }
 
+  const fieldClassName =
+    "h-9 rounded-input border border-base-border bg-base px-3 text-sm text-base-primary outline-hidden placeholder:text-base-subtle";
+
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="w-full max-w-[260px] self-center rounded-[20px] border border-base-border bg-base px-4 py-3 shadow-sm"
-    >
-      <div className="mb-2 text-sm font-medium text-base-primary">
-        {text.lead_capture_title}
-      </div>
-      <div className="flex flex-col gap-2">
-        <input
-          type="text"
-          disabled={availability.value.checking || !availability.value.allowed}
-          value={name.value}
-          onInput={event => {
-            name.value = event.currentTarget.value;
-          }}
-          placeholder={text.lead_capture_name.value}
-          className="h-9 rounded-input border border-base-border bg-base px-3 text-sm text-base-primary outline-hidden"
-        />
-        <input
-          type="tel"
-          disabled={availability.value.checking || !availability.value.allowed}
-          value={phoneNumber.value}
-          onInput={event => {
-            phoneNumber.value = event.currentTarget.value;
-          }}
-          placeholder={text.lead_capture_phone.value}
-          className="h-9 rounded-input border border-base-border bg-base px-3 text-sm text-base-primary outline-hidden"
-        />
-        <input
-          type="email"
-          disabled={availability.value.checking || !availability.value.allowed}
-          value={email.value}
-          onInput={event => {
-            email.value = event.currentTarget.value;
-          }}
-          placeholder={text.lead_capture_email.value}
-          className="h-9 rounded-input border border-base-border bg-base px-3 text-sm text-base-primary outline-hidden"
-        />
-        <button
-          type="submit"
-          disabled={!isValid}
-          className="mt-1 inline-flex h-9 items-center justify-center rounded-button bg-accent px-4 text-sm font-medium text-accent-primary disabled:cursor-not-allowed disabled:opacity-50"
-        >
-          {text.lead_capture_submit}
-        </button>
-      </div>
-    </form>
+    <div className="px-8 flex justify-center">
+      <form
+        onSubmit={handleSubmit}
+        className="flex w-full max-w-[260px] min-w-0 flex-col gap-3 rounded-[calc(var(--el-bubble-radius)+6px)] border border-base-border bg-base px-4 py-4 text-base-primary shadow-sm"
+      >
+        <div className="text-center text-sm font-medium leading-5">
+          {text.lead_capture_title}
+        </div>
+        <div className="flex flex-col gap-2">
+          <input
+            type="text"
+            disabled={availability.value.checking || !availability.value.allowed}
+            value={name.value}
+            onInput={event => {
+              name.value = event.currentTarget.value;
+            }}
+            placeholder={text.lead_capture_name.value}
+            className={fieldClassName}
+          />
+          <input
+            type="tel"
+            disabled={availability.value.checking || !availability.value.allowed}
+            value={phoneNumber.value}
+            onInput={event => {
+              phoneNumber.value = event.currentTarget.value;
+            }}
+            placeholder={text.lead_capture_phone.value}
+            className={fieldClassName}
+          />
+          <input
+            type="email"
+            disabled={availability.value.checking || !availability.value.allowed}
+            value={email.value}
+            onInput={event => {
+              email.value = event.currentTarget.value;
+            }}
+            placeholder={text.lead_capture_email.value}
+            className={fieldClassName}
+          />
+          <button
+            type="submit"
+            disabled={!isValid}
+            className="mt-1 inline-flex h-9 w-full items-center justify-center rounded-button bg-accent px-4 text-sm font-medium text-accent-primary disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {text.lead_capture_submit}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 }
 

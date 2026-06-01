@@ -9,7 +9,7 @@ import { clsx } from "clsx";
 const SIZE_CLASSES = {
   xs: "w-7 h-7",
   sm: "w-9 h-9",
-  header: "w-11 h-11",
+  header: "w-9 h-9",
   md: "w-40 h-40",
   lg: "w-48 h-48",
 };
