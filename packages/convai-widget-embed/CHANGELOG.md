@@ -1,5 +1,9 @@
 # @elevenlabs/convai-widget-embed
 
+## 0.12.14
+
+- Republish the embed bundle with the updated lead-capture gating and centered lead card UI.
+
 ## 0.12.6
 
 - Republish the embed bundle with the updated Conversales header, footer, and sheet sizing.

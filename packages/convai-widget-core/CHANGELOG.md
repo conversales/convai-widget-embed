@@ -1,5 +1,11 @@
 # @elevenlabs/convai-widget-core
 
+## 0.12.14
+
+### Patch Changes
+
+- Disable call-start controls while lead capture is required and restyle lead capture as a neutral in-thread card.
+
 ## 0.12.6
 
 ### Patch Changes
