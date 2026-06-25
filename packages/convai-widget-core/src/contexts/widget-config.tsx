@@ -22,6 +22,7 @@ import { useContextSafely } from "../utils/useContextSafely";
 import { parseBoolAttribute } from "../types/attributes";
 import { useLanguageConfig } from "./language-config";
 import { useConversation } from "./conversation";
+import { fetchWidgetAvailability } from "../utils/widget-api";
 
 const WidgetConfigContext = createContext<ReadonlySignal<WidgetConfig> | null>(
   null
@@ -36,8 +37,31 @@ const DEFAULT_WIDGET_AVAILABILITY = {
   allowed: true,
   message: null,
 } satisfies WidgetAvailability;
-const WIDGET_AVAILABILITY_API_BASE_URL = "https://api.conversales.in";
 const widgetAvailabilityCache = new Map<string, WidgetAvailability>();
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function mergeConfigValues<T>(
+  baseValue: T,
+  overrideValue: unknown
+): T {
+  if (!isPlainObject(baseValue) || !isPlainObject(overrideValue)) {
+    return (overrideValue as T) ?? baseValue;
+  }
+
+  const merged: Record<string, unknown> = { ...baseValue };
+  for (const [key, value] of Object.entries(overrideValue)) {
+    const currentValue = merged[key];
+    merged[key] =
+      isPlainObject(currentValue) && isPlainObject(value)
+        ? mergeConfigValues(currentValue, value)
+        : value;
+  }
+
+  return merged as T;
+}
 
 interface WidgetConfigProviderProps {
   children: ComponentChildren;
@@ -60,6 +84,7 @@ export function getWidgetAvailabilityMessage(
 export function WidgetConfigProvider({ children }: WidgetConfigProviderProps) {
   const { serverUrl } = useServerLocation();
   const agentId = useAttribute("agent-id");
+  const accountId = useAttribute("account-id");
   const overrideConfig = useAttribute("override-config");
   const signedUrl = useAttribute("signed-url");
   const fetchedConfig = useSignal<WidgetConfig | null>(null);
@@ -68,12 +93,12 @@ export function WidgetConfigProvider({ children }: WidgetConfigProviderProps) {
   );
 
   useSignalEffect(() => {
+    let parsedOverrideConfig: WidgetConfig | null = null;
     if (overrideConfig.value) {
       try {
         const config = JSON.parse(overrideConfig.value);
         if (config) {
-          fetchedConfig.value = config;
-          return;
+          parsedOverrideConfig = config;
         }
       } catch (error: any) {
         console.error(
@@ -90,7 +115,7 @@ export function WidgetConfigProvider({ children }: WidgetConfigProviderProps) {
     }
 
     if (!currentAgentId) {
-      fetchedConfig.value = null;
+      fetchedConfig.value = parsedOverrideConfig;
       return;
     }
 
@@ -103,7 +128,9 @@ export function WidgetConfigProvider({ children }: WidgetConfigProviderProps) {
     )
       .then(config => {
         if (!abort.signal.aborted) {
-          fetchedConfig.value = config;
+          fetchedConfig.value = parsedOverrideConfig
+            ? mergeConfigValues(config, parsedOverrideConfig)
+            : config;
         }
       })
       .catch(error => {
@@ -111,7 +138,7 @@ export function WidgetConfigProvider({ children }: WidgetConfigProviderProps) {
           `[ConversationalAI] Cannot fetch config for agent ${agentId.value}: ${error?.message}`
         );
         if (!abort.signal.aborted) {
-          fetchedConfig.value = null;
+          fetchedConfig.value = parsedOverrideConfig;
         }
       });
 
@@ -190,13 +217,17 @@ export function WidgetConfigProvider({ children }: WidgetConfigProviderProps) {
     }
 
     const patchedVariant = variant.value ?? fetchedConfig.value.variant;
-    const patchedPlacement = placement.value ?? fetchedConfig.value.placement;
     const patchedTermsKey = termsKey.value ?? fetchedConfig.value.terms_key;
     const patchedLeadsCapture =
       parseBoolAttribute(leadsCapture.value) ??
       parseBoolAttribute(captureLead.value) ??
       fetchedConfig.value.leads_capture ??
       false;
+    const patchedAccountId =
+      accountId.value?.trim() || fetchedConfig.value.account_id || undefined;
+    const patchedPlacement = parsePlacement(
+      placement.value ?? fetchedConfig.value.placement
+    );
 
     const textOnly =
       parseBoolAttribute(overrideTextOnly.value) ??
@@ -245,8 +276,9 @@ export function WidgetConfigProvider({ children }: WidgetConfigProviderProps) {
       ...fetchedConfig.value,
       styles: patchedStyles,
       variant: parseVariant(patchedVariant),
-      placement: parsePlacement(patchedPlacement),
+      placement: patchedPlacement,
       leads_capture: patchedLeadsCapture,
+      account_id: patchedAccountId,
       terms_key: patchedTermsKey,
       mic_muting_enabled: !textOnly && patchedMicMuting,
       transcript_enabled: textOnly || patchedTranscript,
@@ -320,6 +352,14 @@ export function useTextInputEnabled() {
 export function useLeadsCaptureEnabled() {
   const config = useWidgetConfig();
   return useComputed(() => config.value.leads_capture ?? false);
+}
+
+export function useAccountId() {
+  const config = useWidgetConfig();
+  const accountId = useAttribute("account-id");
+  return useComputed(
+    () => accountId.value?.trim() || config.value.account_id?.trim() || ""
+  );
 }
 
 export function useFileInputEnabled() {
@@ -513,43 +553,4 @@ async function fetchConfig(
     throw new Error("Response does not contain widget_config");
   }
   return data.widget_config;
-}
-
-async function fetchWidgetAvailability(
-  agentId: string,
-  signal: AbortSignal
-): Promise<WidgetAvailability> {
-  try {
-    const response = await fetch(
-      `${WIDGET_AVAILABILITY_API_BASE_URL}/api/v1/widget/checkAvailability?agentId=${encodeURIComponent(agentId)}`,
-      {
-        method: "GET",
-        headers: { Accept: "application/json" },
-        signal,
-      }
-    );
-
-    const payload = await response.json().catch(() => null);
-    const data =
-      payload && typeof payload === "object" ? (payload.data ?? payload) : {};
-    const message = getWidgetAvailabilityMessage(
-      typeof data.message === "string" ? data.message : null
-    );
-
-    if (!response.ok) {
-      return {
-        checking: false,
-        allowed: false,
-        message,
-      };
-    }
-
-    return {
-      checking: false,
-      allowed: data.allowed !== false,
-      message: data.allowed === false ? message : null,
-    };
-  } catch {
-    return DEFAULT_WIDGET_AVAILABILITY;
-  }
 }

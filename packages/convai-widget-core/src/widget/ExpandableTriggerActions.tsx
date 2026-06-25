@@ -13,6 +13,7 @@ import { clsx } from "clsx";
 import { ExpandableProps } from "./Trigger";
 import { Avatar } from "../components/Avatar";
 import { DismissButton } from "../components/DismissButton";
+import { ShopifyCartBadge } from "./ShopifyCartBadge";
 
 interface ExpandableTriggerActionsProps extends ExpandableProps {
   onDismiss?: () => void;
@@ -26,6 +27,10 @@ export function ExpandableTriggerActions({
   const variant = useWidgetConfig().value.variant;
   const { isDisconnected } = useConversation();
   const text = useTextContents();
+  const isFull = variant === "full";
+  const compactCollapsed = !isFull && !expanded.value;
+  const actionPad = compactCollapsed ? "p-0.5" : "p-1";
+  const launcherButtonClass = compactCollapsed ? "h-8 min-w-8" : undefined;
   const toggleExpanded = useCallback(() => {
     expanded.value = !expanded.value;
   }, [expanded]);
@@ -35,27 +40,32 @@ export function ExpandableTriggerActions({
       {variant === "full" && (
         <SizeTransition
           visible={!expanded.value && !isDisconnected.value}
-          className="p-1"
+          className={actionPad}
         >
-          <Avatar />
+          <Avatar size={compactCollapsed ? "xs" : "sm"} />
         </SizeTransition>
       )}
       <SizeTransition
         grow={variant !== "tiny"}
         visible={!textOnly.value && !expanded.value && !isDisconnected.value}
-        className="p-1"
+        className={actionPad}
       >
-        <CallButton iconOnly isDisconnected={false} />
+        <CallButton
+          iconOnly
+          isDisconnected={false}
+          className={launcherButtonClass}
+        />
       </SizeTransition>
       <SizeTransition
         visible={!textOnly.value && !expanded.value && !isDisconnected.value}
-        className="p-1"
+        className={actionPad}
       >
-        <TriggerMuteButton />
+        <TriggerMuteButton className={launcherButtonClass} />
       </SizeTransition>
-      <SizeTransition grow={isDisconnected.value} visible className="p-1">
-        <Button
-          className="w-full"
+      <SizeTransition grow={isDisconnected.value} visible className={actionPad}>
+        <div className="relative">
+          <Button
+            className={clsx("w-full", launcherButtonClass)}
           variant="primary"
           iconClassName={clsx(
             (expanded.value || !isDisconnected.value) &&
@@ -91,11 +101,13 @@ export function ExpandableTriggerActions({
               ? text.start_chat
               : text.start_call
             : undefined}
-        </Button>
+          </Button>
+          {isDisconnected.value && !expanded.value && <ShopifyCartBadge />}
+        </div>
       </SizeTransition>
       <SizeTransition
         visible={!!onDismiss && !expanded.value && isDisconnected.value}
-        className="p-1"
+        className={actionPad}
       >
         <DismissButton onDismiss={onDismiss} />
       </SizeTransition>

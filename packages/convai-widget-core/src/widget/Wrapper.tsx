@@ -1,11 +1,9 @@
 import { memo } from "preact/compat";
 import { useComputed, useSignal, useSignalEffect } from "@preact/signals";
 import { useWidgetConfig } from "../contexts/widget-config";
-import { clsx } from "clsx";
 import { Root } from "../contexts/root-portal";
 import { Sheet } from "./Sheet";
 import { Trigger } from "./Trigger";
-import { Placement } from "../types/config";
 import { useConversation } from "../contexts/conversation";
 import { InOutTransition } from "../components/InOutTransition";
 import { useTerms } from "../contexts/terms";
@@ -15,6 +13,9 @@ import { useWidgetSize } from "../contexts/widget-size";
 import { cn } from "../utils/cn";
 import { useShadowHost } from "../contexts/shadow-host";
 import { ExpandButton } from "../components/ExpandButton";
+import { useIsMobileViewport } from "../hooks/useIsMobileViewport";
+import { lockBodyScroll } from "../utils/lockBodyScroll";
+import { Placement } from "../types/config";
 
 const HORIZONTAL = {
   left: "items-start",
@@ -50,14 +51,44 @@ export const Wrapper = memo(function Wrapper() {
   const { error, isDisconnected } = useConversation();
   const terms = useTerms();
   const { variant } = useWidgetSize();
+  const isMobile = useIsMobileViewport();
   const expandable = useComputed(
     () => config.value.transcript_enabled || config.value.text_input_enabled
   );
+  const isMobileFullscreen = useComputed(() => {
+    if (!isMobile.value || hidden.value) {
+      return false;
+    }
+
+    if (config.value.always_expanded) {
+      return true;
+    }
+
+    return expanded.value;
+  });
+  const showTrigger = useComputed(
+    () => !config.value.always_expanded && !isMobileFullscreen.value
+  );
   const shadowHost = useShadowHost();
-  const className = useComputed(() =>
+
+  useSignalEffect(() => {
+    variant.value = isMobileFullscreen.value ? "fullscreen" : "compact";
+  });
+
+  useSignalEffect(() => {
+    if (!isMobileFullscreen.value) {
+      return;
+    }
+
+    return lockBodyScroll();
+  });
+
+  const overlayClassName = useComputed(() =>
     cn(
       "overlay !flex transition-[opacity] duration-200 data-hidden:opacity-0",
-      PLACEMENT_CLASSES[config.value.placement]
+      isMobileFullscreen.value
+        ? "overlay-mobile-fullscreen"
+        : PLACEMENT_CLASSES[config.value.placement]
     )
   );
   useSignalEffect(() => {
@@ -161,11 +192,12 @@ export const Wrapper = memo(function Wrapper() {
   return (
     <>
       <InOutTransition initial={false} active={showConversation}>
-        <Root className={className} style={HIDDEN_STYLE}>
+        <Root className={overlayClassName} style={HIDDEN_STYLE}>
           {!hidden.value &&
             (config.value.always_expanded ? (
               <Sheet
                 open
+                forceFullscreen={isMobileFullscreen}
                 onDismiss={showDismiss.value ? handleSheetDismiss : undefined}
               />
             ) : (
@@ -173,6 +205,7 @@ export const Wrapper = memo(function Wrapper() {
                 {expandable.value && (
                   <Sheet
                     open={expanded}
+                    forceFullscreen={isMobileFullscreen}
                     onDismiss={
                       showSheetDismiss.value
                         ? showDismiss.value
@@ -184,38 +217,43 @@ export const Wrapper = memo(function Wrapper() {
                 )}
                 <div
                   className={cn(
-                    expanded.value &&
+                    "widget-launcher",
+                    showTrigger.value &&
+                      expanded.value &&
+                      !isMobileFullscreen.value &&
                       (config.value.placement.startsWith("top") ? "mb-3" : "mt-3")
                   )}
                 >
-                  <Trigger
-                    expandable={expandable.value}
-                    expanded={expanded}
-                    onDismiss={
-                      showDismiss.value
-                        ? expandable.value
-                          ? handleSheetDismiss
-                          : handleDismiss
-                        : undefined
-                    }
-                  />
+                  {showTrigger.value && (
+                    <Trigger
+                      expandable={expandable.value}
+                      expanded={expanded}
+                      onDismiss={
+                        showDismiss.value
+                          ? expandable.value
+                            ? handleSheetDismiss
+                            : handleDismiss
+                          : undefined
+                      }
+                    />
+                  )}
                 </div>
               </>
             ))}
         </Root>
       </InOutTransition>
       <InOutTransition initial={false} active={showTerms}>
-        <Root className={className} style={HIDDEN_STYLE}>
+        <Root className={overlayClassName} style={HIDDEN_STYLE}>
           <TermsModal />
         </Root>
       </InOutTransition>
       <InOutTransition initial={false} active={showError}>
-        <Root className={className} style={HIDDEN_STYLE}>
+        <Root className={overlayClassName} style={HIDDEN_STYLE}>
           <ErrorModal sawError={sawError} />
         </Root>
       </InOutTransition>
       <InOutTransition initial={false} active={showExpandButton}>
-        <Root className={className} style={HIDDEN_STYLE}>
+        <Root className={overlayClassName} style={HIDDEN_STYLE}>
           <ExpandButton onExpand={handleExpand} />
         </Root>
       </InOutTransition>

@@ -2,6 +2,9 @@ import { ReadonlySignal } from "@preact/signals";
 import { Button } from "../components/Button";
 import { Icon } from "../components/Icon";
 import { InOutTransition } from "../components/InOutTransition";
+import { useConversation } from "../contexts/conversation";
+import { useProductCart } from "../contexts/product-cart";
+import { useSheetContent } from "../contexts/sheet-content";
 import { useTextContents } from "../contexts/text-contents";
 import { SheetLanguageSelect } from "./SheetLanguageSelect";
 import { StatusLabel } from "./StatusLabel";
@@ -23,24 +26,39 @@ export function SheetHeader({
   onDismiss,
   showStatusLabel,
   showLanguageSelector,
-  showExpandButton,
 }: SheetHeaderProps) {
   const text = useTextContents();
   const name = useAttribute("name");
   const agentName = useAttribute("agent-name");
-  const displayName = agentName.value?.trim() || name.value?.trim() || "Conversales AI";
+  const { resetConversation } = useConversation();
+  const cart = useProductCart();
+  const { currentContent } = useSheetContent();
+  const displayName =
+    agentName.value?.trim() || name.value?.trim() || "Conversales AI";
+
+  const handleStartNew = () => {
+    currentContent.value = "transcript";
+    void (async () => {
+      await resetConversation();
+      cart.resetSession();
+    })();
+  };
+
+  const handleOpenHistory = () => {
+    currentContent.value = "history";
+  };
 
   return (
-    <div className="sheet-header-on-accent w-full relative shrink-0 z-10 border-b border-base-border/70 bg-transparent">
+    <div className="sheet-header-on-accent w-full relative shrink-0 z-10 overflow-visible border-b border-base-border/70 bg-transparent">
       <div className="h-[72px] absolute top-0 w-full bg-transparent" />
       <div className="h-4 absolute top-[72px] w-full bg-gradient-to-b from-base to-transparent backdrop-blur-[1px] [mask-image:linear-gradient(to_bottom,black,transparent)] shadow-scroll-fade-bottom" />
       <div className="relative flex min-h-[72px] items-center justify-between gap-3 px-4 py-2">
-        <div className="flex min-w-0 items-center gap-2.5 pe-20">
+        <div className="flex min-w-0 items-center gap-2.5 pe-28">
           {showBackButton && (
             <Button
               variant="ghost"
               onClick={onBackClick}
-              aria-label={text.go_back}
+              aria-label={text.go_back.value}
               className="h-8 w-8 shrink-0"
             >
               <Icon name="chevron-up" className="-rotate-90" size="xs" />
@@ -75,12 +93,42 @@ export function SheetHeader({
             </InOutTransition>
           </div>
         </div>
-        <div className="absolute end-3 top-1/2 flex -translate-y-1/2 flex-row items-center gap-2">
+        <div className="absolute end-2 top-1/2 flex -translate-y-1/2 flex-row items-center gap-0.5">
           <InOutTransition active={showLanguageSelector}>
             <div className="transition-[opacity,transform] duration-200 data-hidden:opacity-0 data-hidden:-translate-y-4">
               <SheetLanguageSelect />
             </div>
           </InOutTransition>
+          <div className="sheet-header-actions flex items-center">
+            <button
+              type="button"
+              className="sheet-header-action"
+              aria-label={text.start_new_conversation.value}
+              title={text.start_new_conversation.value}
+              data-label={text.start_new_conversation.value}
+              onClick={event => {
+                event.preventDefault();
+                event.stopPropagation();
+                handleStartNew();
+              }}
+            >
+              <Icon name="plus" size="sm" />
+            </button>
+            <button
+              type="button"
+              className="sheet-header-action"
+              aria-label={text.history.value}
+              title={text.history.value}
+              data-label={text.history.value}
+              onClick={event => {
+                event.preventDefault();
+                event.stopPropagation();
+                handleOpenHistory();
+              }}
+            >
+              <Icon name="history" size="sm" />
+            </button>
+          </div>
           <InOutTransition active={!!onDismiss}>
             <button
               type="button"
@@ -90,9 +138,9 @@ export function SheetHeader({
                 event.stopPropagation();
                 onDismiss?.();
               }}
-              className="appearance-none inline-flex h-8 w-8 items-center justify-center rounded-full border-0 bg-transparent p-0 text-base-primary shadow-none outline-hidden transition-[background-color,opacity] duration-200 data-hidden:opacity-0 hover:bg-base-hover active:bg-base-active"
+              className="sheet-header-action appearance-none shadow-none outline-hidden"
             >
-              <Icon name="x" />
+              <Icon name="x" size="sm" />
             </button>
           </InOutTransition>
         </div>

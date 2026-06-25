@@ -25,6 +25,7 @@ export const CustomAttributeList = [
   "accent-color",
   "accent-primary-color",
   "agent-id",
+  "account-id",
   "name",
   "agent-name",
   "signed-url",

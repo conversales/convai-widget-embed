@@ -202,6 +202,30 @@ export const Worker = setupWorker(
       message: null,
     });
   }),
+  http.get("http://localhost:8082/api/v1/widget/checkAvailability", () => {
+    return HttpResponse.json({
+      data: {
+        allowed: true,
+        message: null,
+      },
+    });
+  }),
+  http.get("https://api.conversales.in/api/v1/widget/historyPickup", () => {
+    return HttpResponse.json({
+      data: {
+        found: false,
+        transcript: [],
+      },
+    });
+  }),
+  http.get("http://localhost:8082/api/v1/widget/historyPickup", () => {
+    return HttpResponse.json({
+      data: {
+        found: false,
+        transcript: [],
+      },
+    });
+  }),
   http.get<{ agentId: string }>(
     `${import.meta.env.VITE_SERVER_URL_US}/v1/convai/agents/:agentId/widget`,
     ({ params }) => {

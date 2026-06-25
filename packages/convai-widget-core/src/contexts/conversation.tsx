@@ -5,23 +5,39 @@ import {
   SessionConfig,
   Status,
 } from "@elevenlabs/client";
-import { computed, signal, useSignalEffect } from "@preact/signals";
+import { computed, signal, useSignalEffect, type ReadonlySignal } from "@preact/signals";
 import { ComponentChildren } from "preact";
 import { createContext, useMemo } from "preact/compat";
 import { useEffect, useRef } from "react";
 import { useSessionConfig } from "./session-config";
-import FingerprintJS from "@fingerprintjs/fingerprintjs";
-
+import { useShadowHost } from "./shadow-host";
+import { getOrCreateUserId } from "../utils/widget-user-id";
 import { useContextSafely } from "../utils/useContextSafely";
 import { useTerms } from "./terms";
 import {
   getWidgetAvailabilityMessage,
+  useAccountId,
   useFirstMessage,
   useWidgetAvailability,
   useWidgetConfig,
 } from "./widget-config";
 import { ConversationMode } from "./conversation-mode";
-import { useShadowHost } from "./shadow-host";
+import { useWidgetStorageScope, useWidgetUserId } from "../hooks/useWidgetStorageScope";
+import { useAttribute } from "./attributes";
+import {
+  clearWidgetSession,
+  getWidgetSessionScope,
+  loadWidgetSession,
+  updateWidgetSession,
+} from "../utils/widget-session-storage";
+import { archiveChatToHistory, loadChatHistory } from "../utils/widget-chat-history";
+import { fetchWidgetHistoryPickup } from "../utils/widget-api";
+import { getCartSyncBridge } from "../services/cart-sync-bridge";
+import {
+  getDynamicVariables,
+  warnMissingCartIdOnToolCall,
+} from "../services/cart-sync";
+import { isShopifyCartToolName } from "../types/shopify-cart";
 
 type ConversationSetup = ReturnType<typeof useConversationSetup>;
 
@@ -45,9 +61,12 @@ export type TranscriptEntry =
       type: "message";
       role: Role;
       message: string;
+      displayMessage?: string;
       isText: boolean;
       conversationIndex: number;
       eventId?: number;
+      isStreaming?: boolean;
+      toolResult?: string;
       fileInput?: TranscriptFileInput | null;
     }
   | {
@@ -59,9 +78,11 @@ export type TranscriptEntry =
     }
   | {
       type: "agent_tool_response";
+      toolName?: string;
       toolCallId: string;
       eventId: number;
       isError: boolean;
+      fullToolResult?: string;
       conversationIndex: number;
     }
   | {
@@ -111,7 +132,97 @@ function appendTranscriptMessage(
 }
 
 export function ConversationProvider({ children }: ConversationProviderProps) {
-  const value = useConversationSetup();
+  const agentId = useAttribute("agent-id");
+  const signedUrl = useAttribute("signed-url");
+  const accountId = useAccountId();
+  const userId = useWidgetUserId();
+  const sessionScope = useWidgetStorageScope();
+  const value = useConversationSetup(sessionScope);
+  const restoredScopesRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    const scope = sessionScope.value;
+    if (restoredScopesRef.current.has(scope)) {
+      return;
+    }
+    restoredScopesRef.current.add(scope);
+
+    const restoreFromPickup = async () => {
+      let currentAgentId = agentId.value?.trim();
+      if (signedUrl.value) {
+        const params = new URL(signedUrl.value).searchParams;
+        currentAgentId = params.get("agent_id") ?? currentAgentId;
+      }
+
+      const currentAccountId = accountId.value.trim();
+      const currentUserId = userId.value.trim();
+      if (!currentAgentId || (!currentAccountId && !currentUserId)) {
+        return;
+      }
+
+      const pickup = await fetchWidgetHistoryPickup({
+        agentId: currentAgentId,
+        accountId: currentAccountId || undefined,
+        userId: currentUserId || undefined,
+      });
+      if (!pickup?.found || pickup.transcript.length === 0) {
+        return;
+      }
+
+      value.transcript.value = pickup.transcript;
+      value.conversationIndex.value = pickup.conversationIndex;
+      value.lastId.value = pickup.lastId ?? pickup.conversationId;
+      value.hasRestoredSession.value = true;
+    };
+
+    const saved = loadWidgetSession(scope);
+    if (!saved || saved.transcript.length === 0) {
+      void restoreFromPickup();
+      return;
+    }
+
+    const lastEntry = saved.transcript[saved.transcript.length - 1];
+    const isEnded =
+      lastEntry?.type === "disconnection" || lastEntry?.type === "error";
+
+    if (isEnded) {
+      const history = loadChatHistory(scope);
+      const alreadyArchived =
+        !!saved.lastId && history.some(chat => chat.id === saved.lastId);
+      if (!alreadyArchived) {
+        archiveChatToHistory(scope, saved.transcript, saved.lastId);
+      }
+      clearWidgetSession(scope);
+    }
+
+    value.transcript.value = saved.transcript;
+    value.conversationIndex.value = saved.conversationIndex;
+    value.lastId.value = saved.lastId;
+    value.hasRestoredSession.value = true;
+  }, [
+    sessionScope.value,
+    value,
+    agentId.value,
+    signedUrl.value,
+    accountId.value,
+    userId.value,
+  ]);
+
+  useSignalEffect(() => {
+    value.transcript.value;
+    value.conversationIndex.value;
+    value.lastId.value;
+
+    if (!restoredScopesRef.current.has(sessionScope.value)) {
+      return;
+    }
+
+    updateWidgetSession(sessionScope.value, {
+      transcript: value.transcript.peek(),
+      conversationIndex: value.conversationIndex.peek(),
+      lastId: value.lastId.peek(),
+    });
+  });
 
   // Automatically disconnect the conversation after 10 minutes of no messages
   useSignalEffect(() => {
@@ -140,7 +251,7 @@ export function useConversation() {
   return useContextSafely(ConversationContext);
 }
 
-function useConversationSetup() {
+function useConversationSetup(sessionScope: ReadonlySignal<string>) {
   const conversationRef = useRef<Conversation | null>(null);
   const lockRef = useRef<Promise<Conversation> | null>(null);
   const receivedFirstMessageRef = useRef(false);
@@ -175,6 +286,7 @@ function useConversationSetup() {
     const transcript = signal<TranscriptEntry[]>([]);
     const conversationIndex = signal(0);
     const conversationTextOnly = signal<boolean | null>(null);
+    const hasRestoredSession = signal(false);
 
     return {
       status,
@@ -186,8 +298,13 @@ function useConversationSetup() {
       canSendFeedback,
       conversationIndex,
       conversationTextOnly,
+      hasRestoredSession,
       transcript,
-      startSession: async (element: HTMLElement, initialMessage?: string) => {
+      startSession: async (
+        element: HTMLElement,
+        initialMessage?: string,
+        options?: { displayText?: string; silent?: boolean }
+      ) => {
         await terms.requestTerms();
 
         if (conversationRef.current?.isOpen()) {
@@ -203,6 +320,14 @@ function useConversationSetup() {
         if (!processedConfig.userId) {
           processedConfig.userId = await getOrCreateUserId();
         }
+
+        const cartDynamicVariables =
+          getCartSyncBridge()?.getDynamicVariables() ??
+          getDynamicVariables(sessionScope.peek());
+        processedConfig.dynamicVariables = {
+          ...processedConfig.dynamicVariables,
+          ...cartDynamicVariables,
+        };
 
         // If the user started the conversation with a text message, and the
         // agent supports it, switch to text-only mode.
@@ -244,17 +369,19 @@ function useConversationSetup() {
         }
 
         conversationTextOnly.value = processedConfig.textOnly ?? false;
-        transcript.value = initialMessage
-          ? [
-              {
-                type: "message",
-                role: "user",
-                message: initialMessage,
-                isText: true,
-                conversationIndex: conversationIndex.peek(),
-              },
-            ]
-          : [];
+        if (initialMessage && !options?.silent) {
+          transcript.value = [
+            ...transcript.peek(),
+            {
+              type: "message",
+              role: "user",
+              message: initialMessage,
+              displayMessage: options?.displayText,
+              isText: true,
+              conversationIndex: conversationIndex.peek(),
+            },
+          ];
+        }
 
         try {
           lockRef.current = Conversation.startSession({
@@ -294,6 +421,7 @@ function useConversationSetup() {
                     role: "agent",
                     message,
                     isText: true,
+                    isStreaming: false,
                     conversationIndex: conversationIndex.peek(),
                     eventId: event_id,
                   };
@@ -335,6 +463,7 @@ function useConversationSetup() {
                     role: "agent",
                     message: "",
                     isText: true,
+                    isStreaming: true,
                     conversationIndex: conversationIndex.peek(),
                     eventId: event_id,
                   },
@@ -349,11 +478,25 @@ function useConversationSetup() {
                     updatedTranscript[streamingIndex] = {
                       ...entry,
                       message: entry.message + text,
+                      isStreaming: true,
                     };
                     transcript.value = updatedTranscript;
                   }
                 }
               } else if (type === "stop") {
+                const streamingIndex = streamingMessageIndexRef.current;
+                if (streamingIndex !== null) {
+                  const currentTranscript = transcript.peek();
+                  const entry = currentTranscript[streamingIndex];
+                  if (entry.type === "message") {
+                    const updatedTranscript = [...currentTranscript];
+                    updatedTranscript[streamingIndex] = {
+                      ...entry,
+                      isStreaming: false,
+                    };
+                    transcript.value = updatedTranscript;
+                  }
+                }
                 streamingMessageIndexRef.current = null;
               }
             },
@@ -369,17 +512,61 @@ function useConversationSetup() {
                 },
               ];
             },
-            onAgentToolResponse: ({ tool_call_id, is_error, event_id }) => {
+            onAgentToolResponse: response => {
               transcript.value = [
                 ...transcript.peek(),
                 {
                   type: "agent_tool_response",
-                  toolCallId: tool_call_id,
-                  eventId: event_id,
-                  isError: is_error,
+                  toolName: response.tool_name,
+                  toolCallId: response.tool_call_id,
+                  eventId: response.event_id,
+                  isError: response.is_error,
+                  fullToolResult:
+                    "full_tool_result" in response
+                      ? response.full_tool_result
+                      : undefined,
                   conversationIndex: conversationIndex.peek(),
                 },
               ];
+
+              const bridge = getCartSyncBridge();
+              if (
+                bridge &&
+                !response.is_error &&
+                isShopifyCartToolName(response.tool_name) &&
+                "full_tool_result" in response &&
+                response.full_tool_result
+              ) {
+                void bridge.applyToolSuccess({
+                  toolName: response.tool_name,
+                  toolCallId: response.tool_call_id,
+                  payload: response.full_tool_result,
+                });
+              }
+            },
+            onMCPToolCall: mcpToolCall => {
+              if (mcpToolCall.state === "loading") {
+                warnMissingCartIdOnToolCall(
+                  sessionScope.peek(),
+                  mcpToolCall.tool_name,
+                  mcpToolCall.parameters
+                );
+                return;
+              }
+
+              if (
+                mcpToolCall.state !== "success" ||
+                !isShopifyCartToolName(mcpToolCall.tool_name)
+              ) {
+                return;
+              }
+
+              const bridge = getCartSyncBridge();
+              bridge?.applyToolSuccess({
+                toolName: mcpToolCall.tool_name,
+                toolCallId: mcpToolCall.tool_call_id,
+                payload: mcpToolCall.result,
+              });
             },
             onDisconnect: details => {
               receivedFirstMessageRef.current = false;
@@ -401,6 +588,27 @@ function useConversationSetup() {
                     },
               ];
               conversationIndex.value++;
+
+              const endedTranscript = transcript.peek();
+              const conversationId =
+                conversationRef.current?.getId() ?? lastId.peek();
+              const scope = sessionScope.peek();
+              const history = loadChatHistory(scope);
+              const alreadyArchived =
+                !!conversationId &&
+                history.some(chat => chat.id === conversationId);
+              if (!alreadyArchived) {
+                archiveChatToHistory(
+                  scope,
+                  endedTranscript,
+                  conversationId
+                );
+              }
+              conversationRef.current = null;
+              lockRef.current = null;
+              hasRestoredSession.value = false;
+              clearWidgetSession(scope);
+
               if (details.reason === "error") {
                 error.value = details.message;
                 console.error(
@@ -447,6 +655,24 @@ function useConversationSetup() {
         conversationRef.current = null;
         await conversation?.endSession();
       },
+      resetConversation: async () => {
+        const conversation = conversationRef.current;
+        conversationRef.current = null;
+        await conversation?.endSession();
+
+        receivedFirstMessageRef.current = false;
+        streamingMessageIndexRef.current = null;
+        isReceivingStreamRef.current = false;
+        conversationTextOnly.value = null;
+        status.value = "disconnected";
+        error.value = null;
+        canSendFeedback.value = false;
+        transcript.value = [];
+        conversationIndex.value = 0;
+        lastId.value = null;
+        hasRestoredSession.value = false;
+        clearWidgetSession(sessionScope.peek());
+      },
       getInputVolume: () => {
         return conversationRef.current?.getInputVolume() ?? 0;
       },
@@ -462,14 +688,37 @@ function useConversationSetup() {
       sendFeedback: (like: boolean) => {
         conversationRef.current?.sendFeedback(like);
       },
-      sendUserMessage: (text: string) => {
+      sendUserMessage: (
+        text: string,
+        options?: { displayText?: string; silent?: boolean }
+      ) => {
         conversationRef.current?.sendUserMessage(text);
+        if (options?.silent) {
+          return;
+        }
         transcript.value = [
           ...transcript.value,
           {
             type: "message",
             role: "user",
             message: text,
+            displayMessage: options?.displayText,
+            isText: true,
+            conversationIndex: conversationIndex.peek(),
+          },
+        ];
+      },
+      appendLocalUserMessage: (
+        text: string,
+        options?: { displayText?: string }
+      ) => {
+        transcript.value = [
+          ...transcript.value,
+          {
+            type: "message",
+            role: "user",
+            message: text,
+            displayMessage: options?.displayText,
             isText: true,
             conversationIndex: conversationIndex.peek(),
           },
@@ -516,28 +765,7 @@ function useConversationSetup() {
         ];
       },
     };
-  }, [config]);
-}
-
-async function getOrCreateUserId(): Promise<string> {
-  const STORAGE_KEY = "elevenlabs_convai_user_id";
-  let userId = localStorage.getItem(STORAGE_KEY);
-
-  if (!userId) {
-    try {
-      const fp = await FingerprintJS.load();
-      const result = await fp.get();
-      userId = result.visitorId;
-    } catch (error) {
-      console.warn(
-        "[ConversationalAI] FingerprintJS failed, falling back to random UUID:",
-        error
-      );
-      userId = crypto.randomUUID();
-    }
-    localStorage.setItem(STORAGE_KEY, userId);
-  }
-  return userId;
+  }, [config, sessionScope]);
 }
 
 function triggerCallEvent(

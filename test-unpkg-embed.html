@@ -55,10 +55,33 @@
 
       .controls {
         display: grid;
-        grid-template-columns: minmax(180px, 1.2fr) minmax(160px, 1fr) minmax(180px, 1fr) auto;
+        grid-template-columns: minmax(180px, 1.2fr) minmax(160px, 1fr) minmax(160px, 1fr) minmax(180px, 1fr) auto;
         gap: 12px;
         align-items: end;
         margin: 16px 0;
+      }
+
+      .questions-panel {
+        margin: 0 0 20px;
+        padding: 16px;
+        border: 1px solid #e5e7eb;
+        border-radius: 16px;
+        background: #fafafa;
+      }
+
+      .questions-panel h2 {
+        margin: 0 0 6px;
+        font-size: 16px;
+      }
+
+      .questions-panel p {
+        margin: 0 0 14px;
+        font-size: 13px;
+      }
+
+      .question-grid {
+        display: grid;
+        gap: 10px;
       }
 
       .field {
@@ -69,7 +92,8 @@
         font-weight: 600;
       }
 
-      .field input {
+      .field input,
+      .field select {
         width: 100%;
         box-sizing: border-box;
         border: 1px solid #d1d5db;
@@ -140,12 +164,18 @@
         <form class="controls" id="config-form">
           <label class="field">
             Agent ID
-            <input id="agent-id-input" name="agentId" type="text" />
+            <input
+              id="agent-id-input"
+              name="agentId"
+              type="text"
+              placeholder="Enter agent ID"
+            />
           </label>
           <label class="field">
             Name
             <input id="agent-name-input" name="name" type="text" />
           </label>
+
           <label class="field">
             Color
             <span class="color-row">
@@ -161,6 +191,32 @@
           </label>
           <button type="submit">Apply</button>
         </form>
+        <section class="questions-panel">
+          <h2>Predefined questions</h2>
+          <p>Add up to 5 starter questions. The widget preview updates when you click Apply.</p>
+          <div class="question-grid" id="question-grid">
+            <label class="field">
+              Question 1
+              <input class="question-input" data-question-index="0" type="text" placeholder="Suggest me whey protein" />
+            </label>
+            <label class="field">
+              Question 2
+              <input class="question-input" data-question-index="1" type="text" placeholder="What is Creatine Nano400" />
+            </label>
+            <label class="field">
+              Question 3
+              <input class="question-input" data-question-index="2" type="text" placeholder="Difference between whey and protein" />
+            </label>
+            <label class="field">
+              Question 4
+              <input class="question-input" data-question-index="3" type="text" placeholder="Track my order" />
+            </label>
+            <label class="field">
+              Question 5
+              <input class="question-input" data-question-index="4" type="text" placeholder="Show best sellers" />
+            </label>
+          </div>
+        </section>
         <div class="status" id="status">
           <strong>Checking widget status...</strong>
           Waiting for the widget bundle to load.
@@ -175,13 +231,21 @@
       const configForm = document.getElementById("config-form");
       const agentIdInput = document.getElementById("agent-id-input");
       const agentNameInput = document.getElementById("agent-name-input");
+      const questionInputs = Array.from(document.querySelectorAll(".question-input"));
+
       const themeColorPicker = document.getElementById("theme-color-picker");
       const themeColorInput = document.getElementById("theme-color-input");
       const searchParams = new URLSearchParams(window.location.search);
       const defaultAccentColor = "#3656d4";
       const supportedTags = ["conversales-convai"];
-      let currentAgentId =
-        searchParams.get("agentId") || "agent_1501kq1t1hxzewvb4j1pcfrf902b";
+      const productCardModes = {
+        current: {
+          label: "current agent",
+          overrideConfig: null,
+        },
+      };
+      let currentAgentId = searchParams.get("agentId") || "";
+      let currentAccountId = searchParams.get("accountId") || "";
       let currentAgentName =
         searchParams.get("name") ||
         searchParams.get("nam") ||
@@ -194,8 +258,14 @@
             searchParams.get("accent-color") ||
             ""
         ) || defaultAccentColor;
+      let currentQuestions = Array.from({ length: 5 }, (_, index) =>
+        searchParams.get(`q${index + 1}`) || ""
+      );
       const source = searchParams.get("source") || "local";
       const leadCapture = searchParams.get("leadCapture") || "on";
+      const productCardsMode = productCardModes[searchParams.get("productCards")]
+        ? searchParams.get("productCards")
+        : "current";
       const embedMode = searchParams.get("embedMode") || "widget-attributes";
       const leadCaptureEnabled = leadCapture !== "off";
       const useScriptLeadCapture = embedMode === "script-attributes";
@@ -238,20 +308,70 @@
           : "";
       }
 
+      function getCurrentProductCardMode() {
+        return "current";
+      }
+
+      function getEffectiveAgentId() {
+        return agentIdInput.value.trim() || currentAgentId;
+      }
+
+      function getEffectiveOverrideConfig() {
+        const selectedMode = getCurrentProductCardMode();
+        const baseOverride = productCardModes[selectedMode].overrideConfig;
+        const predefinedQuestions = questionInputs
+          .map(input => input.value.trim())
+          .filter(Boolean)
+          .slice(0, 5);
+
+        if (predefinedQuestions.length === 0) {
+          return baseOverride;
+        }
+
+        return {
+          ...(baseOverride || {}),
+          predefined_questions: predefinedQuestions,
+        };
+      }
+
+      function buildPresetHref(nextSource, nextLeadCapture) {
+        const params = new URLSearchParams();
+        params.set("source", nextSource);
+        params.set("leadCapture", nextLeadCapture);
+        return "?" + params.toString();
+      }
+
       function buildHref(nextSource, nextLeadCapture) {
         const params = new URLSearchParams();
         const nextAgentId = agentIdInput.value.trim() || currentAgentId;
         const nextName = agentNameInput.value.trim() || currentAgentName;
         const nextColor =
           normalizeHexColor(themeColorInput.value) || currentAccentColor;
+        const nextQuestions = questionInputs
+          .map(input => input.value.trim())
+          .slice(0, 5);
 
         params.set("source", nextSource);
         params.set("leadCapture", nextLeadCapture);
-        params.set("agentId", nextAgentId);
+
+        if (nextAgentId) {
+          params.set("agentId", nextAgentId);
+        }
+        if (currentAccountId) {
+          params.set("accountId", currentAccountId);
+        }
         params.set("color", nextColor);
         if (nextName) {
           params.set("name", nextName);
         }
+        nextQuestions.forEach((question, index) => {
+          const key = `q${index + 1}`;
+          if (question) {
+            params.set(key, question);
+          } else {
+            params.delete(key);
+          }
+        });
         return "?" + params.toString();
       }
 
@@ -270,7 +390,7 @@
           "</strong> · Lead: <strong>" +
           escapeHtml(currentLeadLabel) +
           "</strong> · Agent: <strong>" +
-          escapeHtml(currentAgentId) +
+          escapeHtml(getEffectiveAgentId() || "(not set)") +
           "</strong>" +
           (currentAgentName
             ? " · Name: <strong>" + escapeHtml(currentAgentName) + "</strong>"
@@ -282,22 +402,26 @@
           "</strong></span>" +
           currentModeLabel +
           ' · <a href="' +
-          buildHref("local", "on") +
+          buildPresetHref("local", "on") +
           '">local with lead</a> · <a href="' +
-          buildHref("local", "off") +
+          buildPresetHref("local", "off") +
           '">local without lead</a> · <a href="' +
-          buildHref("unpkg", "on") +
+          buildPresetHref("unpkg", "on") +
           '">unpkg with lead</a> · <a href="' +
-          buildHref("unpkg", "off") +
-          '">unpkg without lead</a>';
+          buildPresetHref("unpkg", "off") +
+            '">unpkg without lead</a>';
       }
-
-      renderSourceLabel();
 
       agentIdInput.value = currentAgentId;
       agentNameInput.value = currentAgentName;
+      questionInputs.forEach((input, index) => {
+        input.value = currentQuestions[index] || "";
+      });
+
       themeColorPicker.value = currentAccentColor;
       themeColorInput.value = currentAccentColor;
+
+      renderSourceLabel();
 
       function applyControlValuesToWidget() {
         const widget = widgetRoot.firstElementChild;
@@ -305,12 +429,26 @@
           return;
         }
 
-        const nextAgentId = agentIdInput.value.trim() || currentAgentId;
+        const nextAgentId = getEffectiveAgentId();
         const nextName = agentNameInput.value.trim();
         const nextColor =
           normalizeHexColor(themeColorInput.value) || currentAccentColor;
 
-        widget.setAttribute("agent-id", nextAgentId);
+        if (nextAgentId) {
+          widget.setAttribute("agent-id", nextAgentId);
+        } else {
+          widget.removeAttribute("agent-id");
+        }
+
+        const nextOverrideConfig = getEffectiveOverrideConfig();
+        if (nextOverrideConfig) {
+          widget.setAttribute(
+            "override-config",
+            JSON.stringify(nextOverrideConfig)
+          );
+        } else {
+          widget.removeAttribute("override-config");
+        }
 
         if (nextName) {
           widget.setAttribute("agent-name", nextName);
@@ -336,33 +474,57 @@
 
       agentNameInput.addEventListener("input", applyControlValuesToWidget);
       agentIdInput.addEventListener("input", applyControlValuesToWidget);
+      questionInputs.forEach(input => {
+        input.addEventListener("input", applyControlValuesToWidget);
+      });
 
       configForm.addEventListener("submit", event => {
         event.preventDefault();
 
-        const nextAgentId = agentIdInput.value.trim() || currentAgentId;
+        const nextAgentId = getEffectiveAgentId();
         const nextName = agentNameInput.value.trim();
         const nextColor =
           normalizeHexColor(themeColorInput.value) || currentAccentColor;
+        const nextQuestions = questionInputs
+          .map(input => input.value.trim())
+          .slice(0, 5);
         const params = new URLSearchParams(window.location.search);
 
-        currentAgentId = nextAgentId;
+        currentAgentId = agentIdInput.value.trim();
         currentAgentName = nextName;
         currentAccentColor = nextColor;
+        currentQuestions = nextQuestions;
 
         params.set("source", source);
         params.set("leadCapture", leadCapture);
-        params.set("agentId", nextAgentId);
+        if (nextAgentId) {
+          params.set("agentId", nextAgentId);
+        } else {
+          params.delete("agentId");
+        }
+        if (currentAccountId) {
+          params.set("accountId", currentAccountId);
+        }
         params.set("color", nextColor);
         params.delete("v");
         params.delete("nam");
         params.delete("agentName");
+        params.delete("productCards");
 
         if (nextName) {
           params.set("name", nextName);
         } else {
           params.delete("name");
         }
+
+        nextQuestions.forEach((question, index) => {
+          const key = `q${index + 1}`;
+          if (question) {
+            params.set(key, question);
+          } else {
+            params.delete(key);
+          }
+        });
 
         window.history.replaceState({}, "", "?" + params.toString());
         renderSourceLabel();
@@ -374,8 +536,28 @@
       });
 
       function applyWidgetAttributes(widget) {
-        widget.setAttribute("agent-id", agentIdInput.value.trim() || currentAgentId);
+        const nextAgentId = getEffectiveAgentId();
+        if (nextAgentId) {
+          widget.setAttribute("agent-id", nextAgentId);
+        } else {
+          widget.removeAttribute("agent-id");
+        }
+        if (currentAccountId) {
+          widget.setAttribute("account-id", currentAccountId);
+        } else {
+          widget.removeAttribute("account-id");
+        }
         widget.setAttribute("accent-color", currentAccentColor);
+
+        const nextOverrideConfig = getEffectiveOverrideConfig();
+        if (nextOverrideConfig) {
+          widget.setAttribute(
+            "override-config",
+            JSON.stringify(nextOverrideConfig)
+          );
+        } else {
+          widget.removeAttribute("override-config");
+        }
 
         const nextName = agentNameInput.value.trim() || currentAgentName;
         if (nextName) {

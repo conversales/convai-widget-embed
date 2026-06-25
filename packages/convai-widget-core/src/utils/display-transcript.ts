@@ -19,10 +19,13 @@ export type DisplayTranscriptEntry =
       type: "message";
       role: Role;
       message: string;
+      displayMessage?: string;
       isText: boolean;
       conversationIndex: number;
       eventId?: number;
+      isStreaming?: boolean;
       toolStatus?: ToolCallStatusType;
+      toolResult?: string;
       fileInput?: TranscriptFileInput | null;
     }
   | {
@@ -74,7 +77,12 @@ export function buildDisplayTranscript(
   // Collect tool statuses per eventId
   const toolStatuses = new Map<
     number,
-    { loading: number; error: number; success: number }
+    {
+      loading: number;
+      error: number;
+      success: number;
+      latestResult?: string;
+    }
   >();
   for (const entry of entries) {
     if (entry.type === "agent_tool_request") {
@@ -82,6 +90,7 @@ export function buildDisplayTranscript(
         loading: 0,
         error: 0,
         success: 0,
+        latestResult: undefined,
       };
       s.loading++;
       toolStatuses.set(entry.eventId, s);
@@ -91,6 +100,9 @@ export function buildDisplayTranscript(
         s.loading--;
         if (entry.isError) s.error++;
         else s.success++;
+        if (entry.fullToolResult) {
+          s.latestResult = entry.fullToolResult;
+        }
       }
     }
   }
@@ -155,7 +167,11 @@ export function buildDisplayTranscript(
           : status.error > 0
             ? ToolCallStatus.ERROR
             : ToolCallStatus.SUCCESS;
-      result[i] = { ...entry, toolStatus };
+      result[i] = {
+        ...entry,
+        toolStatus,
+        toolResult: status.latestResult,
+      };
     }
   }
 

@@ -5,6 +5,7 @@ import { TriggerLanguageSelect } from "./TriggerLanguageSelect";
 import { TriggerMuteButton } from "./TriggerMuteButton";
 import { SizeTransition } from "../components/SizeTransition";
 import { DismissButton } from "../components/DismissButton";
+import { cn } from "../utils/cn";
 
 interface TriggerActionsProps {
   onDismiss?: () => void;
@@ -18,8 +19,12 @@ export function TriggerActions({ onDismiss }: TriggerActionsProps) {
     <>
       <CallButton
         isDisconnected={isDisconnected.value}
-        iconOnly={variant === "tiny"}
-        className="w-full m-1 z-1"
+        iconOnly={variant === "tiny" || variant === "compact"}
+        className={cn(
+          "z-1 m-0.5",
+          variant === "compact" && "h-8 min-w-8",
+          variant !== "compact" && variant !== "tiny" && "m-1 w-full"
+        )}
         disabled={
           status.value === "disconnecting" || status.value === "connecting"
         }

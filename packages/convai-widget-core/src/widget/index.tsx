@@ -6,6 +6,11 @@ import { AudioConfigProvider } from "../contexts/audio-config";
 import { ServerLocationProvider } from "../contexts/server-location";
 import { SessionConfigProvider } from "../contexts/session-config";
 import { ConversationProvider } from "../contexts/conversation";
+import { ProductCartProvider } from "../contexts/product-cart";
+import {
+  CartSyncWatcher,
+  ShopifyCartProvider,
+} from "../contexts/shopify-cart";
 import { TextContentsProvider } from "../contexts/text-contents";
 import { AvatarConfigProvider } from "../contexts/avatar-config";
 import { TermsProvider } from "../contexts/terms";
@@ -29,22 +34,27 @@ export function ConvAIWidget(attributes: CustomAttributes) {
                 <TermsProvider>
                   <SessionConfigProvider>
                     <ConversationProvider>
-                      <ConversationModeProvider>
-                        <AudioConfigProvider>
-                          <TextContentsProvider>
-                            <AvatarConfigProvider>
-                              <SheetContentProvider>
-                                <FeedbackProvider>
-                                  <Style />
-                                  <EventBridge>
-                                    <Wrapper />
-                                  </EventBridge>
-                                </FeedbackProvider>
-                              </SheetContentProvider>
-                            </AvatarConfigProvider>
-                          </TextContentsProvider>
-                        </AudioConfigProvider>
-                      </ConversationModeProvider>
+                      <ShopifyCartProvider>
+                        <CartSyncWatcher />
+                        <ProductCartProvider>
+                        <ConversationModeProvider>
+                          <AudioConfigProvider>
+                            <TextContentsProvider>
+                              <AvatarConfigProvider>
+                                <SheetContentProvider>
+                                  <FeedbackProvider>
+                                    <Style />
+                                    <EventBridge>
+                                      <Wrapper />
+                                    </EventBridge>
+                                  </FeedbackProvider>
+                                </SheetContentProvider>
+                              </AvatarConfigProvider>
+                            </TextContentsProvider>
+                          </AudioConfigProvider>
+                        </ConversationModeProvider>
+                      </ProductCartProvider>
+                      </ShopifyCartProvider>
                     </ConversationProvider>
                   </SessionConfigProvider>
                 </TermsProvider>

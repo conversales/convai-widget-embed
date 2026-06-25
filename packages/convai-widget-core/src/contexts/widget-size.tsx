@@ -1,7 +1,7 @@
-import { Signal, useComputed, useSignal } from "@preact/signals";
+import { Signal, useSignal } from "@preact/signals";
 import type { ComponentChildren } from "preact";
 import { createContext } from "preact";
-import { useCallback, useEffect, useMemo } from "preact/hooks";
+import { useCallback, useMemo } from "preact/hooks";
 import { useContextSafely } from "../utils/useContextSafely";
 
 export type SizeVariant = "compact" | "expanded" | "fullscreen";
@@ -20,35 +20,12 @@ interface WidgetSizeProviderProps {
   initialVariant?: SizeVariant;
 }
 
-const MOBILE_BREAKPOINT = 768;
-
 export function WidgetSizeProvider({
   children,
-  initialVariant = "compact",
 }: WidgetSizeProviderProps) {
-  const expanded = useSignal(initialVariant !== "compact");
-  const isMobile = useSignal<boolean>(
-    typeof window !== "undefined"
-      ? window.innerWidth < MOBILE_BREAKPOINT
-      : false
-  );
+  const variant = useSignal<SizeVariant>("compact");
 
-  useEffect(() => {
-    const handleResize = () => {
-      isMobile.value = window.innerWidth < MOBILE_BREAKPOINT;
-    };
-
-    window.addEventListener("resize", handleResize);
-    return () => window.removeEventListener("resize", handleResize);
-  }, []);
-
-  const toggleSize = useCallback(() => {
-    expanded.value = !expanded.value;
-  }, [expanded]);
-
-  const variant = useComputed(() =>
-    expanded.value ? (isMobile.value ? "fullscreen" : "expanded") : "compact"
-  );
+  const toggleSize = useCallback(() => {}, []);
 
   const value = useMemo(
     () => ({

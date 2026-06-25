@@ -14,16 +14,19 @@ import { Transcript } from "./Transcript";
 import { FeedbackPage } from "./FeedbackPage";
 import { FeedbackActions } from "./FeedbackActions";
 import { Signalish } from "../utils/signalish";
+import type { ReadonlySignal } from "@preact/signals";
 import { SheetHeader } from "./SheetHeader";
 import { useSheetContent } from "../contexts/sheet-content";
 import { useWidgetSize } from "../contexts/widget-size";
 import { SheetActions } from "./SheetActions";
 import { AvatarOverlay } from "./AvatarOverlay";
 import { useLeadCaptureRequired } from "./LeadCaptureForm";
+import { SheetHistory } from "./SheetHistory";
 
 interface SheetProps {
   open: Signalish<boolean>;
   onDismiss?: () => void;
+  forceFullscreen?: ReadonlySignal<boolean>;
 }
 
 const ORIGIN_CLASSES: Record<Placement, string> = {
@@ -35,7 +38,7 @@ const ORIGIN_CLASSES: Record<Placement, string> = {
   bottom: "origin-bottom",
 };
 
-export function Sheet({ open, onDismiss }: SheetProps) {
+export function Sheet({ open, onDismiss, forceFullscreen }: SheetProps) {
   const textOnly = useTextOnly();
   const isConversationTextOnly = useIsConversationTextOnly();
   const config = useWidgetConfig();
@@ -44,7 +47,7 @@ export function Sheet({ open, onDismiss }: SheetProps) {
     useConversation();
   const firstMessage = useFirstMessage();
   const { currentContent, currentConfig } = useSheetContent();
-  const { variant } = useWidgetSize();
+  const { variant: sizeVariant } = useWidgetSize();
   const leadCaptureRequired = useLeadCaptureRequired();
 
   const filteredTranscript = useComputed<DisplayTranscriptEntry[]>(() => {
@@ -69,15 +72,22 @@ export function Sheet({ open, onDismiss }: SheetProps) {
   );
   const scrollPinned = useSignal(true);
   const showAvatar = useComputed(
-    () => currentContent.value !== "feedback" && !showTranscript.value
+    () =>
+      currentContent.value !== "feedback" &&
+      currentContent.value !== "history" &&
+      !showTranscript.value
   );
   const showStatusLabel = useComputed(
-    () => currentContent.value !== "feedback" && !!config.value.show_agent_status
+    () =>
+      currentContent.value !== "feedback" &&
+      currentContent.value !== "history" &&
+      !!config.value.show_agent_status
   );
 
   const showLanguageSelector = useComputed(
     () =>
       currentContent.value !== "feedback" &&
+      currentContent.value !== "history" &&
       (!showTranscript.value || isDisconnected.value)
   );
 
@@ -90,23 +100,30 @@ export function Sheet({ open, onDismiss }: SheetProps) {
         isConversationTextOnly.value)
   );
 
+  const isFullscreen = useComputed(
+    () => forceFullscreen?.value || sizeVariant.value === "fullscreen"
+  );
+
   return (
     <InOutTransition initial={false} active={open}>
       <div
-        data-variant={variant.value}
+        data-variant={isFullscreen.value ? "fullscreen" : sizeVariant.value}
         className={cn(
           "sheet",
-          "sheet-surface flex flex-col overflow-hidden absolute shadow-lg pointer-events-auto z-2",
+          "sheet-surface flex flex-col pointer-events-auto z-2",
           "transition-[width,height,max-width,max-height,transform,border-radius,opacity,inset,bottom,top,left,right,margin,padding] duration-200",
-          "data-hidden:scale-90 data-hidden:opacity-0",
-          ORIGIN_CLASSES[placement],
-          placement.startsWith("top")
-            ? config.value.always_expanded
-              ? "top-0"
-              : "top-20"
-            : config.value.always_expanded
-              ? "bottom-0"
-              : "bottom-20"
+          isFullscreen.value
+            ? "sheet-mobile-fullscreen fixed inset-0 overflow-hidden shadow-none data-hidden:scale-100 data-hidden:opacity-0"
+            : "overflow-visible absolute shadow-lg data-hidden:scale-90 data-hidden:opacity-0",
+          !isFullscreen.value && ORIGIN_CLASSES[placement],
+          !isFullscreen.value &&
+            (placement.startsWith("top")
+              ? config.value.always_expanded
+                ? "top-0"
+                : "top-20"
+              : config.value.always_expanded
+                ? "bottom-0"
+                : "bottom-20")
         )}
       >
         <SheetHeader
@@ -118,7 +135,7 @@ export function Sheet({ open, onDismiss }: SheetProps) {
           showExpandButton={showExpandButton}
         />
         <InOutTransition active={currentContent.value === "transcript"}>
-          <div className="grow flex flex-col min-h-0 relative transition-opacity duration-300 ease-out data-hidden:opacity-0">
+          <div className="grow flex flex-col min-h-0 relative overflow-hidden transition-opacity duration-300 ease-out data-hidden:opacity-0">
             <Transcript
               transcript={filteredTranscript}
               scrollPinned={scrollPinned}
@@ -127,6 +144,11 @@ export function Sheet({ open, onDismiss }: SheetProps) {
               showTranscript={showTranscript.value}
               scrollPinned={scrollPinned}
             />
+          </div>
+        </InOutTransition>
+        <InOutTransition active={currentContent.value === "history"}>
+          <div className="grow flex flex-col min-h-0 relative overflow-hidden transition-opacity duration-300 ease-out data-hidden:opacity-0">
+            <SheetHistory />
           </div>
         </InOutTransition>
         <InOutTransition active={currentContent.value === "feedback"}>

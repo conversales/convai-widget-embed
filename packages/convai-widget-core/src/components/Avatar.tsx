@@ -40,9 +40,15 @@ export function Avatar({
   const imageRef = useRef<HTMLDivElement>(null);
 
   useSignalEffect(() => {
+    const background = backgroundRef.current;
+    const image = imageRef.current;
+    if (!background || !image) {
+      return;
+    }
+
     if (isDisconnected.value) {
-      backgroundRef.current!.style.transform = "";
-      imageRef.current!.style.transform =
+      background.style.transform = "";
+      image.style.transform =
         imageScale === 1 ? "" : `scale(${imageScale})`;
 
       return;
@@ -50,14 +56,20 @@ export function Avatar({
 
     let id: number;
     function draw() {
+      const backgroundNode = backgroundRef.current;
+      const imageNode = imageRef.current;
+      if (!backgroundNode || !imageNode) {
+        return;
+      }
+
       const inputVolume = getInputVolume();
       const outputVolume = getOutputVolume();
 
       const inputScale = isSpeaking.peek() ? 1 : 1 - inputVolume * 0.4;
       const outputScale = !isSpeaking.peek() ? 1 : 1 + outputVolume * 0.4;
 
-      backgroundRef.current!.style.transform = `scale(${outputScale})`;
-      imageRef.current!.style.transform = `scale(${inputScale * imageScale})`;
+      backgroundNode.style.transform = `scale(${outputScale})`;
+      imageNode.style.transform = `scale(${inputScale * imageScale})`;
 
       id = requestAnimationFrame(draw);
     }

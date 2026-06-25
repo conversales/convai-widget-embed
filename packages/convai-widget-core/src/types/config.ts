@@ -35,7 +35,15 @@ export interface AllowlistItem {
 export interface WidgetConfig {
   variant: Variant;
   placement: Placement;
+  product_cards?: {
+    enabled?: boolean;
+    show_images?: boolean;
+    agent_label?: string;
+    checkout_url?: string;
+  };
+  predefined_questions?: string[];
   leads_capture?: boolean;
+  account_id?: string;
   markdown_link_allowed_hosts?: AllowlistItem[];
   markdown_link_include_www?: boolean;
   markdown_link_allow_http?: boolean;
@@ -112,6 +120,12 @@ export const DefaultTextContents = {
   lead_capture_submit: "Submit details",
   send_message: "Send",
   new_call: "New call",
+  start_new_conversation: "Start new",
+  history: "History",
+  more_options: "More options",
+  saved_address: "Saved address",
+  use_saved_address: "Use this address",
+  enter_different_address: "Enter a different address",
   end_call: "End",
   mute_microphone: "Mute microphone",
   text_mode: "Switch to text mode",

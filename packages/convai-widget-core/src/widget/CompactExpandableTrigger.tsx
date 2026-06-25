@@ -16,11 +16,14 @@ export function CompactExpandableTrigger({
 }: CompactExpandableTriggerProps) {
   return (
     <div
-      className={clsx("rounded-compact-sheet flex items-center p-2", className)}
+      className={clsx(
+        "rounded-compact-sheet flex items-center gap-0.5 p-1",
+        className
+      )}
       {...rest}
     >
-      <SizeTransition visible={!expanded.value} className="p-1">
-        <Avatar />
+      <SizeTransition visible={!expanded.value} className="p-0.5">
+        <Avatar size="xs" />
       </SizeTransition>
       <ExpandableTriggerActions expanded={expanded} onDismiss={onDismiss} />
     </div>

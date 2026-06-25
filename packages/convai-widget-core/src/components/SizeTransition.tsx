@@ -125,8 +125,10 @@ function Animated({
   const { transitioning, handlers } = useCSSTransition({
     onEnd: () => {
       if (visible) {
-        node!.style.width = "";
-        node!.style.height = "";
+        if (node) {
+          node.style.width = "";
+          node.style.height = "";
+        }
       } else {
         setRetain(false);
       }

@@ -15,6 +15,7 @@
     "generate:types": "turbo run generate --filter=@elevenlabs/types",
     "prepare": "husky install",
     "dev": "turbo dev",
+    "dev:embed": "node scripts/dev-embed.mjs",
     "clean": "turbo clean",
     "changeset": "changeset",
     "publish": "turbo build lint && changeset publish"

@@ -39,13 +39,14 @@ function toolReq(
 /** Helper to create a tool response entry */
 function toolRes(
   eventId: number,
-  opts: { toolCallId?: string; isError?: boolean } = {}
+  opts: { toolCallId?: string; isError?: boolean; fullToolResult?: string } = {}
 ): Extract<TranscriptEntry, { type: "agent_tool_response" }> {
   return {
     type: "agent_tool_response",
     toolCallId: opts.toolCallId ?? "call_1",
     eventId,
     isError: opts.isError ?? false,
+    fullToolResult: opts.fullToolResult,
     conversationIndex: 0,
   };
 }
@@ -234,6 +235,28 @@ describe("buildDisplayTranscript", () => {
       ];
       const result = build(input, { showAgentStatus: false });
       expect(result[0]).not.toHaveProperty("toolStatus");
+    });
+
+    it("attaches latest full tool result to the matching agent message", () => {
+      const input = [
+        msg("agent", "Here are products", { eventId: 7 }),
+        toolReq(7),
+        toolRes(7, {
+          fullToolResult:
+            '{"products":[{"name":"Classic White Tee","price":"$49.99","image_url":"https://example.com/tee.jpg"}]}',
+        }),
+      ];
+
+      const result = build(input, { showAgentStatus: true });
+
+      expect(result[0]).toMatchObject({
+        message: "Here are products",
+        toolStatus: "success",
+      });
+      expect(result[0]).toHaveProperty(
+        "toolResult",
+        '{"products":[{"name":"Classic White Tee","price":"$49.99","image_url":"https://example.com/tee.jpg"}]}'
+      );
     });
   });
 

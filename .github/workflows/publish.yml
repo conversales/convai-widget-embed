@@ -47,7 +47,7 @@ jobs:
       - name: Validate tag matches package.json version
         run: |
           TAG_VERSION=$(echo "${{ github.event.release.tag_name }}" | rev | cut -d'@' -f1 | rev)
-          PACKAGE_PATH="packages/$(echo "$PACKAGE_NAME" | sed 's/@elevenlabs\///')"
+          PACKAGE_PATH="packages/$(echo "$PACKAGE_NAME" | sed 's/^@[^/]*\///')"
           PACKAGE_JSON_VERSION=$(node -p "require('./$PACKAGE_PATH/package.json').version")
 
           echo "Tag version: $TAG_VERSION"
@@ -64,7 +64,7 @@ jobs:
 
       - name: Validate workspace dependencies are published
         run: |
-          PACKAGE_PATH="packages/$(echo "$PACKAGE_NAME" | sed 's/@elevenlabs\///')"
+          PACKAGE_PATH="packages/$(echo "$PACKAGE_NAME" | sed 's/^@[^/]*\///')"
 
           # Get all workspace dependencies from package.json (excluding private packages)
           WORKSPACE_DEPS=$(node -p "
@@ -73,7 +73,7 @@ jobs:
             Object.entries(deps)
               .filter(([_, version]) => version.startsWith('workspace:'))
               .map(([name, version]) => {
-                const pkgPath = 'packages/' + name.replace('@elevenlabs/', '') + '/package.json';
+                const pkgPath = 'packages/' + name.replace(/^@[^/]+\\//, '') + '/package.json';
                 try {
                   const depPkg = require('./' + pkgPath);
                   // Skip private packages (they are not published to npm)
@@ -130,7 +130,7 @@ jobs:
 
       - name: Publish package
         run: |
-          PACKAGE_PATH="packages/$(echo "$PACKAGE_NAME" | sed 's/@elevenlabs\///')"
+          PACKAGE_PATH="packages/$(echo "$PACKAGE_NAME" | sed 's/^@[^/]*\///')"
           # Configure pnpm to use local npm v11.6.4 for OIDC support
           NPM_BIN="$PWD/node_modules/.bin/npm"
           pnpm config set npm-path "$NPM_BIN"

@@ -19,8 +19,11 @@ import {
   useFileInputMaxFiles,
   useIsConversationTextOnly,
   useTextInputEnabled,
+  useWidgetConfig,
   useWidgetAvailability,
 } from "../contexts/widget-config";
+import { useProductCart } from "../contexts/product-cart";
+import { isContinuePaymentMessage, isCheckoutFlowStep } from "../utils/checkout";
 import { cn } from "../utils/cn";
 import { CallButton } from "./CallButton";
 import { TriggerMuteButton } from "./TriggerMuteButton";
@@ -38,6 +41,7 @@ export function SheetActions({
   showTranscript: boolean;
   scrollPinned: Signal<boolean>;
 }) {
+  const config = useWidgetConfig();
   const textInputEnabled = useTextInputEnabled();
   const leadCaptureRequired = useLeadCaptureRequired();
   const availability = useWidgetAvailability();
@@ -49,10 +53,12 @@ export function SheetActions({
     isDisconnected,
     status,
     lastId,
+    transcript,
     startSession,
     sendUserMessage,
     sendMultimodalMessage,
   } = useConversation();
+  const cart = useProductCart();
 
   const fileError = useSignal<string | null>(null);
   // Auto-dismiss the validation toast 4s after it's set; a new message resets
@@ -127,6 +133,18 @@ export function SheetActions({
     return (hasText || hasReadyFile) && !isUploading.value;
   });
 
+  const predefinedQuestions = useComputed(() =>
+    (config.value.predefined_questions ?? [])
+      .map(question => question.trim())
+      .filter(Boolean)
+      .slice(0, 5)
+  );
+  const hasUserMessages = useComputed(() =>
+    transcript.value.some(
+      entry => entry.type === "message" && entry.role === "user"
+    )
+  );
+
   const handleSendMessage = useCallback(
     async (e: TargetedEvent<HTMLElement>) => {
       e.preventDefault();
@@ -158,6 +176,23 @@ export function SheetActions({
       if (message) {
         scrollPinned.value = true;
         userMessage.value = "";
+
+        if (isContinuePaymentMessage(message)) {
+          if (cart.handleContinuePaymentRequest()) {
+            return;
+          }
+
+          if (isCheckoutFlowStep(cart.checkoutStep.value)) {
+            cart.beginCheckoutUrlRequest();
+            if (isDisconnected.value) {
+              await startSession(e.currentTarget, message, { silent: true });
+            } else {
+              sendUserMessage(message, { silent: true });
+            }
+            return;
+          }
+        }
+
         if (isDisconnected.value) {
           await startSession(e.currentTarget, message);
         } else {
@@ -175,13 +210,68 @@ export function SheetActions({
       pendingFile,
       markFileAsSent,
       canSend,
+      cart,
+      config,
+    ]
+  );
+
+  const handlePredefinedQuestion = useCallback(
+    async (question: string, e: TargetedEvent<HTMLElement>) => {
+      scrollPinned.value = true;
+
+      if (isContinuePaymentMessage(question)) {
+        if (cart.handleContinuePaymentRequest()) {
+          return;
+        }
+
+        if (isCheckoutFlowStep(cart.checkoutStep.value)) {
+          cart.beginCheckoutUrlRequest();
+          if (isDisconnected.value) {
+            await startSession(e.currentTarget, question, { silent: true });
+            return;
+          }
+          sendUserMessage(question, { silent: true });
+          return;
+        }
+      }
+
+      if (isDisconnected.value) {
+        await startSession(e.currentTarget, question);
+        return;
+      }
+      sendUserMessage(question);
+    },
+    [
+      isDisconnected,
+      scrollPinned,
+      sendUserMessage,
+      startSession,
+      cart,
+      config,
     ]
   );
 
   return (
     <div className="sticky bottom-0 pointer-events-none z-10 max-h-[50%] flex flex-col">
-      <div className="absolute top-0 left-0 right-0 h-4 -translate-y-full bg-gradient-to-t from-base to-transparent pointer-events-none backdrop-blur-[1px] [mask-image:linear-gradient(to_top,black,transparent)] shadow-scroll-fade-top" />
-      <div className="relative w-full px-3 pb-1.5 flex flex-col items-center pointer-events-auto min-h-0">
+      <div
+        className="sheet-actions relative w-full flex flex-col pointer-events-auto min-h-0 items-center px-3 pb-1.5"
+      >
+        {!hasUserMessages.value && predefinedQuestions.value.length > 0 && (
+          <div className="w-full px-1 pb-2 flex flex-col items-end gap-2">
+            {predefinedQuestions.value.map(question => (
+              <Button
+                key={question}
+                variant="secondary"
+                className="max-w-full min-h-0 rounded-[999px] border border-base-border bg-base px-4 py-2 text-sm text-base-primary shadow-sm hover:bg-base-hover active:bg-base-active whitespace-normal text-left"
+                onClick={event => {
+                  void handlePredefinedQuestion(question, event);
+                }}
+              >
+                {question}
+              </Button>
+            ))}
+          </div>
+        )}
         {fileError.value && (
           <div className="w-full px-1 pb-1.5 text-xs text-base-error text-center">
             {fileError.value}
@@ -220,7 +310,7 @@ export function SheetActions({
               }
               onSendMessage={handleSendMessage}
             />
-            <div className="absolute bottom-0 left-0 right-0 flex gap-1.5 items-center justify-end px-3 pb-3 pt-2 pointer-events-none">
+            <div className="sheet-input-actions absolute bottom-0 left-0 right-0 flex gap-1.5 items-center justify-end px-3 pb-3 pt-2 pointer-events-none">
               <div className="pointer-events-auto flex gap-1.5 items-center">
                 <SheetButtons
                   canSend={canSend}
