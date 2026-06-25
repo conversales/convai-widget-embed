@@ -14,7 +14,10 @@
     "check-types": "tsc --noEmit --skipLibCheck",
     "lint:es": "pnpm exec eslint .",
     "lint:prettier": "prettier 'src/**/*.ts' --check",
-    "test": "vitest"
+    "test": "vitest run --project unit",
+    "test:browser": "vitest run --project browser",
+    "test:all": "vitest run",
+    "test:ui": "vitest --ui --project unit"
   },
   "files": [
     "dist"

@@ -66,7 +66,7 @@ describe("conversales-convai", () => {
 
       // Received transcript
       await expect
-        .element(page.getByText("Agent response"))
+        .element(page.getByText("Agent response", { exact: true }))
         .toBeInTheDocument();
       await expect
         .element(page.getByText("User transcript"))
@@ -278,7 +278,7 @@ describe("conversales-convai", () => {
 
       // Displayed first message
       await expect
-        .element(page.getByText("Agent response"))
+        .element(page.getByText("Agent response", { exact: true }))
         .toBeInTheDocument();
 
       // Text input
@@ -330,7 +330,9 @@ describe("conversales-convai", () => {
       await textInput.fill("Bye");
       await userEvent.keyboard("{Enter}");
 
-      await expect.element(page.getByText("Bye")).toBeInTheDocument();
+      await expect
+        .element(page.getByText("Bye", { exact: true }))
+        .toBeInTheDocument();
 
       await expect
         .element(page.getByText("Goodbye! Have a great day!"))
@@ -377,7 +379,7 @@ describe("conversales-convai", () => {
 
       // Received transcript
       await expect
-        .element(page.getByText("Agent response"))
+        .element(page.getByText("Agent response", { exact: true }))
         .toBeInTheDocument();
       await expect
         .element(page.getByText("User transcript"))
@@ -385,7 +387,7 @@ describe("conversales-convai", () => {
 
       // Displayed error
       await expect
-        .element(page.getByText("An error occurred"))
+        .element(page.getByText("An error occurred", { exact: true }))
         .toBeInTheDocument();
       await expect.element(page.getByText("Test reason")).toBeInTheDocument();
       await expect.element(page.getByText("ID")).toBeInTheDocument();
@@ -862,7 +864,7 @@ describe("conversales-convai", () => {
         await acceptButton.click();
 
         await expect
-          .element(page.getByText("Agent response"))
+          .element(page.getByText("Agent response", { exact: true }))
           .toBeInTheDocument();
 
         const textInput = page.getByRole("textbox", {
@@ -902,7 +904,7 @@ describe("conversales-convai", () => {
       await userEvent.keyboard("{Enter}");
 
       await expect
-        .element(page.getByText("An error occurred"))
+        .element(page.getByText("An error occurred", { exact: true }))
         .toBeInTheDocument();
       await expect.element(page.getByText("ID")).toBeInTheDocument();
     });

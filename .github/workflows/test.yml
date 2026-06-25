@@ -40,7 +40,10 @@ jobs:
           apt-get install sudo
           sudo pulseaudio --start
 
-      - name: Run tests
-        run: pnpm run test
+      - name: Run unit tests
+        run: pnpm run test:deps
+
+      - name: Run browser tests
+        run: pnpm --filter @elevenlabs/client test:browser
         env:
           HOME: /root

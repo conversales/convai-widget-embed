@@ -61,16 +61,32 @@ function Animated({
   const active = useSignalish(activeSignalish);
   const visible = useSignal(peekSignalish(initial));
 
-  useSignalEffect(() => {
-    if (active.value) {
-      visible.value = active.value;
-    }
-  });
-
-  const { handlers } = useCSSTransition({
+  const { handlers, transitioning } = useCSSTransition({
     onEnd: () => {
       visible.value = active.value;
     },
+  });
+
+  useSignalEffect(() => {
+    if (active.value) {
+      visible.value = true;
+      return;
+    }
+
+    let cancelled = false;
+    const frame = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (cancelled || active.peek()) return;
+        if (!transitioning.peek()) {
+          visible.value = false;
+        }
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+    };
   });
 
   if (!active.value && !visible.value) return null;

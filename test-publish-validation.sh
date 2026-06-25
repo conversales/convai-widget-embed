@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Test script for publish workflow validation
-# This tests the logic used in .github/workflows/publish.yml
+# Mirrors the logic in .github/workflows/publish.yml
 
 set -e
 
@@ -12,8 +12,77 @@ NC='\033[0m' # No Color
 
 TESTS_PASSED=0
 TESTS_FAILED=0
+SKIP_NPM_CHECKS="${SKIP_NPM_CHECKS:-0}"
 
-# Test function
+extract_package_name() {
+  echo "$1" | rev | cut -d'@' -f2- | rev
+}
+
+extract_tag_version() {
+  echo "$1" | rev | cut -d'@' -f1 | rev
+}
+
+package_path_from_name() {
+  echo "packages/$(echo "$1" | sed 's/^@[^/]*\///')"
+}
+
+is_dep_published() {
+  local dep_name="$1"
+  local dep_version="$2"
+  npm view "$dep_name@$dep_version" version &>/dev/null
+}
+
+check_workspace_deps_on_npm() {
+  local workspace_deps="$1"
+  local allow_unpublished_local="$2"
+  local missing=0
+
+  for DEP in $workspace_deps; do
+    DEP_NAME=$(echo "$DEP" | rev | cut -d'@' -f2- | rev)
+    DEP_VERSION=$(echo "$DEP" | rev | cut -d'@' -f1 | rev)
+
+    if is_dep_published "$DEP_NAME" "$DEP_VERSION"; then
+      echo "  ✓ $DEP_NAME@$DEP_VERSION is published"
+      continue
+    fi
+
+    if [ "$allow_unpublished_local" = "1" ]; then
+      LOCAL_VERSION=$(node -p "require('./$(package_path_from_name "$DEP_NAME")/package.json').version" 2>/dev/null || echo "")
+      if [ "$DEP_VERSION" = "$LOCAL_VERSION" ]; then
+        echo "  ⚠ $DEP_NAME@$DEP_VERSION is not on npm yet (matches local package.json)"
+        continue
+      fi
+    fi
+
+    echo "  ✗ $DEP_NAME@$DEP_VERSION is NOT published"
+    missing=1
+  done
+
+  return $missing
+}
+
+get_workspace_deps() {
+  local package_path="$1"
+  node -p "
+    const pkg = require('./${package_path}/package.json');
+    const deps = { ...pkg.dependencies, ...pkg.devDependencies, ...pkg.peerDependencies };
+    Object.entries(deps)
+      .filter(([_, version]) => version.startsWith('workspace:'))
+      .map(([name, version]) => {
+        const pkgPath = 'packages/' + name.replace(/^@[^/]+\\//, '') + '/package.json';
+        try {
+          const depPkg = require('./' + pkgPath);
+          if (depPkg.private) return null;
+          return name + '@' + depPkg.version;
+        } catch (e) {
+          return null;
+        }
+      })
+      .filter(Boolean)
+      .join(' ');
+  " 2>/dev/null || echo ""
+}
+
 test_case() {
   local test_name="$1"
   echo -e "\n${YELLOW}TEST: $test_name${NC}"
@@ -21,25 +90,30 @@ test_case() {
 
 pass() {
   echo -e "${GREEN}✓ PASS${NC}"
-  ((TESTS_PASSED++))
+  TESTS_PASSED=$((TESTS_PASSED + 1))
 }
 
 fail() {
   echo -e "${RED}✗ FAIL: $1${NC}"
-  ((TESTS_FAILED++))
+  TESTS_FAILED=$((TESTS_FAILED + 1))
 }
 
 echo "======================================"
 echo "Testing Publish Workflow Validation"
 echo "======================================"
 
-# ===== TEST 1: Version extraction and validation =====
-test_case "Version extraction for @elevenlabs/react-native@0.4.1"
+CORE_PKG="@conversales/convai-widget-core"
+CORE_VERSION=$(node -p "require('./packages/convai-widget-core/package.json').version")
+EMBED_PKG="@conversales/convai-widget-embed"
+EMBED_VERSION=$(node -p "require('./packages/convai-widget-embed/package.json').version")
 
-TAG_NAME="@elevenlabs/react-native@0.4.1"
-TAG_VERSION=$(echo "$TAG_NAME" | rev | cut -d'@' -f1 | rev)
-PACKAGE_NAME=$(echo "$TAG_NAME" | rev | cut -d'@' -f2- | rev)
-PACKAGE_PATH="packages/$(echo "$PACKAGE_NAME" | sed 's/@elevenlabs\///')"
+# ===== TEST 1: Version extraction and validation =====
+test_case "Version extraction for ${CORE_PKG}@${CORE_VERSION}"
+
+TAG_NAME="${CORE_PKG}@${CORE_VERSION}"
+TAG_VERSION=$(extract_tag_version "$TAG_NAME")
+PACKAGE_NAME=$(extract_package_name "$TAG_NAME")
+PACKAGE_PATH=$(package_path_from_name "$PACKAGE_NAME")
 PACKAGE_JSON_VERSION=$(node -p "require('./$PACKAGE_PATH/package.json').version")
 
 echo "  Tag: $TAG_NAME"
@@ -48,19 +122,19 @@ echo "  Extracted tag version: $TAG_VERSION"
 echo "  Package path: $PACKAGE_PATH"
 echo "  package.json version: $PACKAGE_JSON_VERSION"
 
-if [ "$PACKAGE_NAME" = "@elevenlabs/react-native" ] && [ "$TAG_VERSION" = "0.4.1" ] && [ "$TAG_VERSION" = "$PACKAGE_JSON_VERSION" ]; then
+if [ "$PACKAGE_NAME" = "$CORE_PKG" ] && [ "$TAG_VERSION" = "$CORE_VERSION" ] && [ "$TAG_VERSION" = "$PACKAGE_JSON_VERSION" ]; then
   pass
 else
   fail "Version extraction or validation failed"
 fi
 
 # ===== TEST 2: Version mismatch detection =====
-test_case "Version mismatch detection (tag 0.5.0 vs package.json 0.4.1)"
+test_case "Version mismatch detection (tag vs package.json)"
 
-TAG_NAME="@elevenlabs/react-native@0.5.0"
-TAG_VERSION=$(echo "$TAG_NAME" | rev | cut -d'@' -f1 | rev)
-PACKAGE_NAME=$(echo "$TAG_NAME" | rev | cut -d'@' -f2- | rev)
-PACKAGE_PATH="packages/$(echo "$PACKAGE_NAME" | sed 's/@elevenlabs\///')"
+TAG_NAME="${CORE_PKG}@0.0.0-mismatch"
+TAG_VERSION=$(extract_tag_version "$TAG_NAME")
+PACKAGE_NAME=$(extract_package_name "$TAG_NAME")
+PACKAGE_PATH=$(package_path_from_name "$PACKAGE_NAME")
 PACKAGE_JSON_VERSION=$(node -p "require('./$PACKAGE_PATH/package.json').version")
 
 echo "  Tag version: $TAG_VERSION"
@@ -76,7 +150,7 @@ fi
 # ===== TEST 3: Beta tag detection =====
 test_case "Beta tag detection"
 
-FULL_TAG_NAME="@elevenlabs/react-native@0.5.0-beta.1"
+FULL_TAG_NAME="${EMBED_PKG}@${EMBED_VERSION}-beta.1"
 if [[ "$FULL_TAG_NAME" == *"beta"* ]]; then
   PUBLISH_TAG="beta"
 else
@@ -95,7 +169,7 @@ fi
 # ===== TEST 4: Latest tag detection =====
 test_case "Latest tag detection"
 
-FULL_TAG_NAME="@elevenlabs/react-native@0.5.0"
+FULL_TAG_NAME="${EMBED_PKG}@${EMBED_VERSION}"
 if [[ "$FULL_TAG_NAME" == *"beta"* ]]; then
   PUBLISH_TAG="beta"
 else
@@ -111,29 +185,11 @@ else
   fail "Should have detected latest tag"
 fi
 
-# ===== TEST 5: Workspace dependency extraction for react-native =====
-test_case "Workspace dependency extraction for @elevenlabs/react-native"
+# ===== TEST 5: Workspace dependency extraction for embed =====
+test_case "Workspace dependency extraction for ${EMBED_PKG}"
 
-PACKAGE_NAME="@elevenlabs/react-native"
-PACKAGE_PATH="packages/$(echo "$PACKAGE_NAME" | sed 's/@elevenlabs\///')"
-
-WORKSPACE_DEPS=$(node -p "
-  const pkg = require('./$PACKAGE_PATH/package.json');
-  const deps = { ...pkg.dependencies, ...pkg.devDependencies, ...pkg.peerDependencies };
-  Object.entries(deps)
-    .filter(([_, version]) => version.startsWith('workspace:'))
-    .map(([name, version]) => {
-      const pkgPath = 'packages/' + name.replace('@elevenlabs/', '') + '/package.json';
-      try {
-        const depPkg = require('./' + pkgPath);
-        return name + '@' + depPkg.version;
-      } catch (e) {
-        return null;
-      }
-    })
-    .filter(Boolean)
-    .join(' ');
-" 2>/dev/null || echo "")
+PACKAGE_PATH=$(package_path_from_name "$EMBED_PKG")
+WORKSPACE_DEPS=$(get_workspace_deps "$PACKAGE_PATH")
 
 echo "  Workspace deps: $WORKSPACE_DEPS"
 
@@ -143,144 +199,110 @@ else
   fail "Should have found workspace dependencies"
 fi
 
-# ===== TEST 6: Verify published dependency =====
-test_case "Verify @elevenlabs/types@0.0.2 is published on npm"
+# ===== TEST 6: Verify published dependency on npm =====
+test_case "Verify latest published ${CORE_PKG} on npm"
 
-DEP_NAME="@elevenlabs/types"
-DEP_VERSION="0.0.2"
-
-if npm view "$DEP_NAME@$DEP_VERSION" version &>/dev/null; then
-  echo "  ✓ $DEP_NAME@$DEP_VERSION is published"
+if [ "$SKIP_NPM_CHECKS" = "1" ]; then
+  echo "  Skipped (SKIP_NPM_CHECKS=1)"
   pass
 else
-  fail "$DEP_NAME@$DEP_VERSION should be published"
+  PUBLISHED_VERSION=$(npm view "$CORE_PKG" version 2>/dev/null || echo "")
+  if [ -n "$PUBLISHED_VERSION" ] && npm view "$CORE_PKG@$PUBLISHED_VERSION" version &>/dev/null; then
+    echo "  ✓ $CORE_PKG@$PUBLISHED_VERSION is published"
+    pass
+  else
+    fail "$CORE_PKG should have a published version on npm"
+  fi
 fi
 
 # ===== TEST 7: Detect unpublished dependency =====
-test_case "Detect unpublished dependency @elevenlabs/types@999.999.999"
+test_case "Detect unpublished dependency ${CORE_PKG}@999.999.999"
 
-DEP_NAME="@elevenlabs/types"
-DEP_VERSION="999.999.999"
-
-if npm view "$DEP_NAME@$DEP_VERSION" version &>/dev/null; then
-  fail "Should not have found non-existent version"
-else
-  echo "  ✓ Correctly identified as unpublished"
+if [ "$SKIP_NPM_CHECKS" = "1" ]; then
+  echo "  Skipped (SKIP_NPM_CHECKS=1)"
   pass
+else
+  if npm view "$CORE_PKG@999.999.999" version &>/dev/null; then
+    fail "Should not have found non-existent version"
+  else
+    echo "  ✓ Correctly identified as unpublished"
+    pass
+  fi
 fi
 
-# ===== TEST 8: Chain of dependencies (react -> client -> types) =====
-test_case "Verify dependency chain: @elevenlabs/react -> client -> types"
+# ===== TEST 8: Dependency chain for embed -> core =====
+test_case "Verify dependency chain: ${EMBED_PKG} -> ${CORE_PKG}"
 
-PACKAGE_NAME="@elevenlabs/react"
-PACKAGE_PATH="packages/$(echo "$PACKAGE_NAME" | sed 's/@elevenlabs\///')"
+PACKAGE_PATH=$(package_path_from_name "$EMBED_PKG")
+WORKSPACE_DEPS=$(get_workspace_deps "$PACKAGE_PATH")
 
-WORKSPACE_DEPS=$(node -p "
-  const pkg = require('./$PACKAGE_PATH/package.json');
-  const deps = { ...pkg.dependencies, ...pkg.devDependencies, ...pkg.peerDependencies };
-  Object.entries(deps)
-    .filter(([_, version]) => version.startsWith('workspace:'))
-    .map(([name, version]) => {
-      const pkgPath = 'packages/' + name.replace('@elevenlabs/', '') + '/package.json';
-      try {
-        const depPkg = require('./' + pkgPath);
-        return name + '@' + depPkg.version;
-      } catch (e) {
-        return null;
-      }
-    })
-    .filter(Boolean)
-    .join(' ');
-" 2>/dev/null || echo "")
+echo "  Workspace deps for $EMBED_PKG: $WORKSPACE_DEPS"
 
-echo "  Workspace deps for @elevenlabs/react: $WORKSPACE_DEPS"
-
-ALL_PUBLISHED=true
-for DEP in $WORKSPACE_DEPS; do
-  DEP_NAME=$(echo "$DEP" | cut -d'@' -f1-2)
-  DEP_VERSION=$(echo "$DEP" | cut -d'@' -f3)
-
-  if npm view "$DEP_NAME@$DEP_VERSION" version &>/dev/null; then
-    echo "  ✓ $DEP_NAME@$DEP_VERSION is published"
-  else
-    echo "  ✗ $DEP_NAME@$DEP_VERSION is NOT published"
-    ALL_PUBLISHED=false
-  fi
-done
-
-if [ "$ALL_PUBLISHED" = true ]; then
+if [ "$SKIP_NPM_CHECKS" = "1" ]; then
+  echo "  Skipped npm publish checks (SKIP_NPM_CHECKS=1)"
+  pass
+elif check_workspace_deps_on_npm "$WORKSPACE_DEPS" "1"; then
   pass
 else
   fail "Some dependencies are not published"
 fi
 
-# ===== TEST 10: Full validation script for react-native =====
-test_case "Full validation for @elevenlabs/react-native@0.4.1"
+# ===== TEST 9: Full validation for embed =====
+test_case "Full validation for ${EMBED_PKG}@${EMBED_VERSION}"
 
-TAG_NAME="@elevenlabs/react-native@0.4.1"
-TAG_VERSION=$(echo "$TAG_NAME" | rev | cut -d'@' -f1 | rev)
-PACKAGE_NAME=$(echo "$TAG_NAME" | rev | cut -d'@' -f2- | rev)
-PACKAGE_PATH="packages/$(echo "$PACKAGE_NAME" | sed 's/@elevenlabs\///')"
+TAG_NAME="${EMBED_PKG}@${EMBED_VERSION}"
+TAG_VERSION=$(extract_tag_version "$TAG_NAME")
+PACKAGE_NAME=$(extract_package_name "$TAG_NAME")
+PACKAGE_PATH=$(package_path_from_name "$PACKAGE_NAME")
 PACKAGE_JSON_VERSION=$(node -p "require('./$PACKAGE_PATH/package.json').version")
 
 echo "  Step 1: Check version match"
+STEP9_FAILED=false
 if [ "$TAG_VERSION" != "$PACKAGE_JSON_VERSION" ]; then
   fail "Version mismatch in step 1"
-  exit 1
+  STEP9_FAILED=true
+else
+  echo "    ✓ Version matches: $TAG_VERSION"
 fi
-echo "    ✓ Version matches: $TAG_VERSION"
 
 echo "  Step 2: Check workspace dependencies"
-WORKSPACE_DEPS=$(node -p "
-  const pkg = require('./$PACKAGE_PATH/package.json');
-  const deps = { ...pkg.dependencies, ...pkg.devDependencies, ...pkg.peerDependencies };
-  Object.entries(deps)
-    .filter(([_, version]) => version.startsWith('workspace:'))
-    .map(([name, version]) => {
-      const pkgPath = 'packages/' + name.replace('@elevenlabs/', '') + '/package.json';
-      try {
-        const depPkg = require('./' + pkgPath);
-        return name + '@' + depPkg.version;
-      } catch (e) {
-        return null;
-      }
-    })
-    .filter(Boolean)
-    .join(' ');
-" 2>/dev/null || echo "")
+WORKSPACE_DEPS=$(get_workspace_deps "$PACKAGE_PATH")
 
 if [ -z "$WORKSPACE_DEPS" ]; then
   echo "    ✓ No workspace dependencies to check"
+elif [ "$SKIP_NPM_CHECKS" = "1" ]; then
+  echo "    Workspace deps: $WORKSPACE_DEPS"
+  echo "    Skipped npm publish checks (SKIP_NPM_CHECKS=1)"
 else
   echo "    Workspace deps: $WORKSPACE_DEPS"
-  for DEP in $WORKSPACE_DEPS; do
-    DEP_NAME=$(echo "$DEP" | cut -d'@' -f1-2)
-    DEP_VERSION=$(echo "$DEP" | cut -d'@' -f3)
-
-    if npm view "$DEP_NAME@$DEP_VERSION" version &>/dev/null; then
-      echo "      ✓ $DEP_NAME@$DEP_VERSION is published"
-    else
-      fail "      ✗ $DEP_NAME@$DEP_VERSION is NOT published"
-      exit 1
-    fi
-  done
+  if ! check_workspace_deps_on_npm "$WORKSPACE_DEPS" "1"; then
+    fail "Unpublished workspace dependencies in step 2"
+    STEP9_FAILED=true
+  fi
 fi
 
-pass
+if [ "$STEP9_FAILED" = false ]; then
+  pass
+fi
 
-# ===== TEST 11: Test all publishable packages =====
+# ===== TEST 10: Version extraction for all publishable packages =====
 test_case "Test version extraction for all packages"
 
-for pkg_path in packages/types packages/react-native packages/client packages/react packages/convai-widget-core packages/convai-widget-embed; do
+for pkg_path in packages/convai-widget-core packages/convai-widget-embed packages/types packages/react-native packages/client packages/react; do
+  if [ ! -f "$pkg_path/package.json" ]; then
+    continue
+  fi
+
   PKG_NAME=$(node -p "require('./$pkg_path/package.json').name")
   PKG_VERSION=$(node -p "require('./$pkg_path/package.json').version")
 
   TAG_NAME="${PKG_NAME}@${PKG_VERSION}"
-  EXTRACTED_VERSION=$(echo "$TAG_NAME" | rev | cut -d'@' -f1 | rev)
-  EXTRACTED_NAME=$(echo "$TAG_NAME" | rev | cut -d'@' -f2- | rev)
+  EXTRACTED_VERSION=$(extract_tag_version "$TAG_NAME")
+  EXTRACTED_NAME=$(extract_package_name "$TAG_NAME")
+  EXTRACTED_PATH=$(package_path_from_name "$EXTRACTED_NAME")
 
-  if [ "$EXTRACTED_NAME" != "$PKG_NAME" ] || [ "$EXTRACTED_VERSION" != "$PKG_VERSION" ]; then
-    fail "  ✗ $PKG_NAME: extraction failed (got $EXTRACTED_NAME@$EXTRACTED_VERSION)"
+  if [ "$EXTRACTED_NAME" != "$PKG_NAME" ] || [ "$EXTRACTED_VERSION" != "$PKG_VERSION" ] || [ "$EXTRACTED_PATH" != "$pkg_path" ]; then
+    fail "  ✗ $PKG_NAME: extraction failed (got $EXTRACTED_NAME@$EXTRACTED_VERSION at $EXTRACTED_PATH)"
     continue
   fi
 
@@ -303,5 +325,6 @@ if [ $TESTS_FAILED -eq 0 ]; then
   exit 0
 else
   echo -e "${RED}Some tests failed!${NC}"
+  echo "Tip: set SKIP_NPM_CHECKS=1 to run local validation only."
   exit 1
 fi

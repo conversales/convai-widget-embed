@@ -7,8 +7,7 @@ import {
 } from "@elevenlabs/client";
 import { computed, signal, useSignalEffect, type ReadonlySignal } from "@preact/signals";
 import { ComponentChildren } from "preact";
-import { createContext, useMemo } from "preact/compat";
-import { useEffect, useRef } from "react";
+import { createContext, useEffect, useMemo, useRef } from "preact/compat";
 import { useSessionConfig } from "./session-config";
 import { useShadowHost } from "./shadow-host";
 import { getOrCreateUserId } from "../utils/widget-user-id";

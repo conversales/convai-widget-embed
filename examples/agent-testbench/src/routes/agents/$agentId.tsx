@@ -3,10 +3,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { useCallback, useState } from "react";
 import { z } from "zod";
 
-import {
-  getElevenLabsClient,
-  getMissingApiKeyMessage,
-} from "@/lib/elevenlabs.server";
+import { getApiErrorMessage } from "@/lib/elevenlabs-errors";
 import { LocalStorage } from "@/lib/localStorage";
 import { Page } from "@/components/page";
 import { ConversationProvider } from "@elevenlabs/react";
@@ -21,6 +18,7 @@ const AgentIdSchema = z.object({
 const getAgent = createServerFn()
   .inputValidator(AgentIdSchema)
   .handler(async ({ data }) => {
+    const { getElevenLabsClient } = await import("@/lib/elevenlabs.server");
     const elevenlabs = getElevenLabsClient();
     const { agentId, name } = await elevenlabs.conversationalAi.agents.get(
       data.agentId
@@ -45,10 +43,7 @@ export const Route = createFileRoute("/agents/$agentId")({
       return { agent: await getAgent({ data: { agentId } }), error: null };
     } catch (error) {
       console.error("Failed to get agent", error);
-      const errorMessage =
-        error instanceof Error && error.message.includes("ELEVENLABS_API_KEY")
-          ? getMissingApiKeyMessage()
-          : "Failed to get agent";
+      const errorMessage = getApiErrorMessage(error, "Failed to get agent");
 
       return { agent: null, error: errorMessage };
     }

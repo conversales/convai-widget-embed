@@ -1,5 +1,5 @@
+import type { JSX } from "preact";
 import { useCallback, useContext } from "preact/compat";
-import type { DetailedHTMLProps, ImgHTMLAttributes } from "react";
 import type { ExtraProps } from "../utils/markdown";
 import { cn } from "../../utils/cn";
 import { StreamdownRuntimeContext } from "../index";
@@ -73,11 +73,7 @@ function useDownloadImage({
   };
 }
 
-type ImageComponentProps = DetailedHTMLProps<
-  ImgHTMLAttributes<HTMLImageElement>,
-  HTMLImageElement
-> &
-  ExtraProps;
+type ImageComponentProps = JSX.IntrinsicElements["img"] & ExtraProps;
 
 export const ImageComponent = ({
   node,

@@ -33,25 +33,51 @@ export default defineConfig({
     ...(process.env.ANALYZE ? [analyzer()] : []),
   ],
   test: {
-    name: "ConvAI Widget Tests",
-    browser: {
-      enabled: true,
-      instances: [
-        {
-          browser: "chromium",
-          provider: playwright({
-            launchOptions: {
-              args: [
-                "--use-fake-device-for-media-stream",
-                "--use-fake-ui-for-media-stream",
-              ],
-            },
-            contextOptions: {
-              permissions: ["microphone"],
-            },
-          }),
+    projects: [
+      {
+        extends: true,
+        test: {
+          name: "unit",
+          environment: "node",
+          include: ["src/**/*.test.ts"],
+          exclude: [
+            "src/index.test.ts",
+            "src/widget/DismissButton.test.ts",
+            "src/widget/UploadFileButton.test.ts",
+          ],
         },
-      ],
-    },
+      },
+      {
+        extends: true,
+        test: {
+          name: "browser",
+          include: [
+            "src/index.test.ts",
+            "src/widget/DismissButton.test.ts",
+            "src/widget/UploadFileButton.test.ts",
+          ],
+          browser: {
+            enabled: true,
+            headless: true,
+            instances: [
+              {
+                browser: "chromium",
+                provider: playwright({
+                  launchOptions: {
+                    args: [
+                      "--use-fake-device-for-media-stream",
+                      "--use-fake-ui-for-media-stream",
+                    ],
+                  },
+                  contextOptions: {
+                    permissions: ["microphone"],
+                  },
+                }),
+              },
+            ],
+          },
+        },
+      },
+    ],
   },
 });

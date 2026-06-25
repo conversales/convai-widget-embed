@@ -1,12 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 
 import { createServerFn } from "@tanstack/react-start";
+import type { ElevenLabs } from "@elevenlabs/elevenlabs-js";
 
-import {
-  ElevenLabs,
-  getElevenLabsClient,
-  getMissingApiKeyMessage,
-} from "@/lib/elevenlabs.server";
+import { getApiErrorMessage } from "@/lib/elevenlabs-errors";
 import { Page } from "@/components/page";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,12 +14,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const getAgents = createServerFn().handler(async () => {
+  const { getElevenLabsClient } = await import("@/lib/elevenlabs.server");
   const elevenlabs = getElevenLabsClient();
   const { agents } = await elevenlabs.conversationalAi.agents.list();
   return agents;
 });
 
 const getUser = createServerFn().handler(async () => {
+  const { getElevenLabsClient } = await import("@/lib/elevenlabs.server");
   const elevenlabs = getElevenLabsClient();
   const { firstName, userId } = await elevenlabs.user.get();
   return { firstName, userId };
@@ -47,10 +46,7 @@ export const Route = createFileRoute("/")({
       return { agents: await getAgents(), user: await getUser(), error: null };
     } catch (error) {
       console.error("Failed to get agents", error);
-      const errorMessage =
-        error instanceof Error && error.message.includes("ELEVENLABS_API_KEY")
-          ? getMissingApiKeyMessage()
-          : "Failed to get agents";
+      const errorMessage = getApiErrorMessage(error, "Failed to get agents");
 
       return { agents: [], user: null, error: errorMessage };
     }
