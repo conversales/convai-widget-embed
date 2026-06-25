@@ -1,5 +1,11 @@
 # @elevenlabs/convai-widget-embed
 
+## 0.13.0
+
+### Minor Changes
+
+- 2b8e66f: Add product cart checkout flow with confirmation card, Shopify MCP cart sync, mobile fullscreen layout, and production widget history API. Fix checkout link so it no longer resets the active chat session.
+
 ## 0.12.14
 
 - Republish the embed bundle with the updated lead-capture gating and centered lead card UI.
