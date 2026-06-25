@@ -66,15 +66,36 @@ export function buildProductViewMessages(product: ProductCardData): {
   return { displayText, backendText };
 }
 
-export function buildAddToCartMessages(product: ProductCardData): {
+export function appendCartIdToBackendText(
+  backendText: string,
+  cartId?: string | null
+): string {
+  const trimmed = cartId?.trim();
+  if (!trimmed) {
+    return backendText;
+  }
+
+  return `${backendText}. Cart ID: ${trimmed}`;
+}
+
+export function buildAddToCartMessages(
+  product: ProductCardData,
+  options?: { cartId?: string | null; size?: string }
+): {
   displayText: string;
   backendText: string;
 } {
   const displayName = getProductDisplayName(product.name);
-  const displayText = `Add ${displayName} to cart`;
-  const backendText = product.id
+  const displayText = options?.size
+    ? `Add ${displayName} (size ${options.size}) to cart`
+    : `Add ${displayName} to cart`;
+  const backendWithProductId = product.id
     ? `${displayText}. Product ID: ${product.id}`
     : displayText;
+  const backendText = appendCartIdToBackendText(
+    backendWithProductId,
+    options?.cartId
+  );
 
   return { displayText, backendText };
 }
@@ -98,5 +119,7 @@ export function getUserMessageDisplayText(
   return message
     .replace(/\.\s*Product\s+ID:\s*\S+.*$/i, "")
     .replace(/\s+Product\s+ID:\s*\S+.*$/i, "")
+    .replace(/\.\s*Cart\s+ID:\s*\S+.*$/i, "")
+    .replace(/\s+Cart\s+ID:\s*\S+.*$/i, "")
     .trim();
 }

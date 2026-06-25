@@ -1,11 +1,14 @@
 import { describe, expect, it, beforeEach, vi } from "vitest";
 import {
   clearProcessedToolCallsForTests,
+  bootstrapCartFromBrowser,
+  getDynamicVariables,
   getStoredCartId,
   handleToolSuccess,
   loadShopifyCartStorage,
   saveShopifyCartStorage,
 } from "./cart-sync";
+import { cartTokenToGid } from "../utils/shopify-cart-cookie";
 import {
   parseCartToolPayload,
   parseCartFromAgentText,
@@ -132,6 +135,42 @@ describe("shopify-cart-parse", () => {
       lineItemCount: 3,
     });
   });
+
+  it("parses Shopify Cart MCP structuredContent payloads", () => {
+    const snapshot = parseCartToolPayload(
+      JSON.stringify({
+        structuredContent: {
+          cart: {
+            id: SAMPLE_CART_ID,
+            continue_url: SAMPLE_CHECKOUT_URL,
+            line_items: [
+              {
+                quantity: 1,
+                item: {
+                  id: "gid://shopify/ProductVariant/40123456789",
+                  title: "Camp Stool",
+                },
+              },
+            ],
+          },
+        },
+      })
+    );
+
+    expect(snapshot).toEqual({
+      cartId: SAMPLE_CART_ID,
+      checkoutUrl: SAMPLE_CHECKOUT_URL,
+      lineItems: [
+        {
+          id: undefined,
+          quantity: 1,
+          title: "Camp Stool",
+          variantId: "gid://shopify/ProductVariant/40123456789",
+        },
+      ],
+      lineItemCount: 1,
+    });
+  });
 });
 
 describe("cart-sync storage", () => {
@@ -142,6 +181,7 @@ describe("cart-sync storage", () => {
     installLocalStorageMock();
     clearProcessedToolCallsForTests();
     vi.restoreAllMocks();
+    vi.stubGlobal("document", { cookie: "" });
     vi.spyOn(globalThis, "fetch").mockResolvedValue({
       ok: true,
       json: async () => ({ item_count: 2 }),
@@ -220,5 +260,57 @@ describe("cart-sync storage", () => {
 
     expect(first.applied).toBe(true);
     expect(second.applied).toBe(false);
+  });
+
+  it("handles create_cart MCP responses", async () => {
+    const result = await handleToolSuccess({
+      toolName: "create_cart",
+      toolCallId: "call-create",
+      payload: SAMPLE_CART_JSON,
+      scope,
+    });
+
+    expect(result.applied).toBe(true);
+    expect(result.storage?.cartId).toBe(SAMPLE_CART_ID);
+  });
+
+  it("bootstraps cart id from the browser cookie on refresh", async () => {
+    const cookieToken =
+      "hWNDIQHsBDBY6WWFI4P7e1zd?key=b9e15ed73154f5eee7d8614823c7b284";
+    vi.stubGlobal("document", {
+      cookie: `cart=${cookieToken}`,
+      querySelector: () => ({}),
+    });
+    vi.stubGlobal("window", {
+      location: { hostname: "xu7xfr-ij.myshopify.com" },
+    });
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      json: async () => ({ item_count: 1, token: cookieToken }),
+    } as Response);
+
+    const storage = await bootstrapCartFromBrowser(scope);
+
+    expect(storage?.cartId).toBe(cartTokenToGid(cookieToken));
+    expect(storage?.lineItemCount).toBe(1);
+    expect(getStoredCartId(scope)).toBe(cartTokenToGid(cookieToken));
+  });
+
+  it("exposes whether a cart already exists to the agent", () => {
+    expect(getDynamicVariables(scope)).toEqual({
+      shopify_cart_id: "",
+      shopify_has_cart: "false",
+    });
+
+    saveShopifyCartStorage(
+      scope,
+      parseCartToolPayload(SAMPLE_CART_JSON)!,
+      null
+    );
+
+    expect(getDynamicVariables(scope)).toEqual({
+      shopify_cart_id: SAMPLE_CART_ID,
+      shopify_has_cart: "true",
+    });
   });
 });

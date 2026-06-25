@@ -5,13 +5,20 @@ import type {
 } from "../types/shopify-cart";
 import { isShopifyCartToolName } from "../types/shopify-cart";
 import { parseCartToolPayload } from "../utils/shopify-cart-parse";
-import { readCartIdFromCookie } from "../utils/shopify-cart-cookie";
-import { syncThemeCartFromSnapshot } from "../utils/shopify-theme-cart";
+import {
+  readCartIdFromCookie,
+  setShopifyCartCookie,
+} from "../utils/shopify-cart-cookie";
+import {
+  readBrowserCartState,
+  syncThemeCartFromSnapshot,
+} from "../utils/shopify-theme-cart";
 
 const LOG_PREFIX = "[CartSync]";
 const STORAGE_PREFIX = "xi:convai-shopify-cart:";
 
 export const SHOPIFY_CART_ID_DYNAMIC_VARIABLE = "shopify_cart_id";
+export const SHOPIFY_HAS_CART_DYNAMIC_VARIABLE = "shopify_has_cart";
 
 export type CartSyncToolSuccessInput = {
   toolName: string;
@@ -104,8 +111,10 @@ export function getStoredCartId(scope: string): string | null {
 }
 
 export function getDynamicVariables(scope: string): Record<string, string> {
+  const cartId = getStoredCartId(scope);
   return {
-    [SHOPIFY_CART_ID_DYNAMIC_VARIABLE]: getStoredCartId(scope) ?? "",
+    [SHOPIFY_CART_ID_DYNAMIC_VARIABLE]: cartId ?? "",
+    [SHOPIFY_HAS_CART_DYNAMIC_VARIABLE]: cartId ? "true" : "false",
   };
 }
 
@@ -113,6 +122,48 @@ export function buildCartContextualUpdate(cartId: string): string {
   return JSON.stringify({
     [SHOPIFY_CART_ID_DYNAMIC_VARIABLE]: cartId,
   });
+}
+
+export function notifyAgentOfExistingCart(
+  sendContextualUpdate: (text: string) => void,
+  scope: string
+): string | null {
+  const cartId = getStoredCartId(scope);
+  if (cartId) {
+    sendContextualUpdate(buildCartContextualUpdate(cartId));
+  }
+  return cartId;
+}
+
+/**
+ * Restores cart state from the browser `cart` cookie (and /cart.js on Shopify)
+ * so refresh keeps the same cart id for MCP get_cart / update_cart.
+ */
+export async function bootstrapCartFromBrowser(
+  scope: string
+): Promise<ShopifyCartStorage | null> {
+  const browserCart = await readBrowserCartState();
+  const cartId =
+    readCartIdFromCookie() ?? loadShopifyCartStorage(scope)?.cartId ?? null;
+
+  if (!cartId) {
+    return loadShopifyCartStorage(scope);
+  }
+
+  const existing = loadShopifyCartStorage(scope);
+  const snapshot: ShopifyCartSnapshot = {
+    cartId,
+    checkoutUrl: existing?.checkoutUrl,
+    lineItems: [],
+    lineItemCount:
+      typeof browserCart?.item_count === "number"
+        ? browserCart.item_count
+        : (existing?.lineItemCount ?? 0),
+  };
+
+  setShopifyCartCookie(cartId);
+  const { storage } = saveShopifyCartStorage(scope, snapshot, existing);
+  return storage;
 }
 
 export type CartSnapshotInput = {
@@ -139,6 +190,10 @@ async function applyCartSnapshotToScope(
     snapshot,
     existing
   );
+
+  if (snapshot.cartId) {
+    setShopifyCartCookie(snapshot.cartId);
+  }
 
   const themeState = await syncThemeCartFromSnapshot(snapshot);
   const cartIdFromCookie = readCartIdFromCookie();
@@ -232,7 +287,7 @@ export function warnMissingCartIdOnToolCall(
   toolName: string,
   parameters: Record<string, unknown> | undefined
 ) {
-  if (!isShopifyCartToolName(toolName)) {
+  if (!isShopifyCartToolName(toolName) || toolName === "create_cart") {
     return;
   }
 
@@ -242,10 +297,11 @@ export function warnMissingCartIdOnToolCall(
   }
 
   const requestedCartId =
-    typeof parameters?.cart_id === "string" ? parameters.cart_id.trim() : "";
+    (typeof parameters?.id === "string" ? parameters.id.trim() : "") ||
+    (typeof parameters?.cart_id === "string" ? parameters.cart_id.trim() : "");
   if (!requestedCartId) {
     console.warn(
-      `${LOG_PREFIX} ${toolName} called without cart_id while ${storedCartId} is stored. Ensure the agent passes {{${SHOPIFY_CART_ID_DYNAMIC_VARIABLE}}}.`
+      `${LOG_PREFIX} ${toolName} called without cart id while ${storedCartId} is stored. Pass {{${SHOPIFY_CART_ID_DYNAMIC_VARIABLE}}} as the MCP "id" argument.`
     );
   }
 }

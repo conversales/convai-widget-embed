@@ -5,7 +5,12 @@ import {
   SessionConfig,
   Status,
 } from "@elevenlabs/client";
-import { computed, signal, useSignalEffect, type ReadonlySignal } from "@preact/signals";
+import {
+  computed,
+  signal,
+  useSignalEffect,
+  type ReadonlySignal,
+} from "@preact/signals";
 import { ComponentChildren } from "preact";
 import { createContext, useEffect, useMemo, useRef } from "preact/compat";
 import { useSessionConfig } from "./session-config";
@@ -21,7 +26,10 @@ import {
   useWidgetConfig,
 } from "./widget-config";
 import { ConversationMode } from "./conversation-mode";
-import { useWidgetStorageScope, useWidgetUserId } from "../hooks/useWidgetStorageScope";
+import {
+  useWidgetStorageScope,
+  useWidgetUserId,
+} from "../hooks/useWidgetStorageScope";
 import { useAttribute } from "./attributes";
 import {
   clearWidgetSession,
@@ -29,11 +37,15 @@ import {
   loadWidgetSession,
   updateWidgetSession,
 } from "../utils/widget-session-storage";
-import { archiveChatToHistory, loadChatHistory } from "../utils/widget-chat-history";
+import {
+  archiveChatToHistory,
+  loadChatHistory,
+} from "../utils/widget-chat-history";
 import { fetchWidgetHistoryPickup } from "../utils/widget-api";
 import { getCartSyncBridge } from "../services/cart-sync-bridge";
 import {
   getDynamicVariables,
+  notifyAgentOfExistingCart,
   warnMissingCartIdOnToolCall,
 } from "../services/cart-sync";
 import { isShopifyCartToolName } from "../types/shopify-cart";
@@ -597,11 +609,7 @@ function useConversationSetup(sessionScope: ReadonlySignal<string>) {
                 !!conversationId &&
                 history.some(chat => chat.id === conversationId);
               if (!alreadyArchived) {
-                archiveChatToHistory(
-                  scope,
-                  endedTranscript,
-                  conversationId
-                );
+                archiveChatToHistory(scope, endedTranscript, conversationId);
               }
               conversationRef.current = null;
               lockRef.current = null;
@@ -619,6 +627,10 @@ function useConversationSetup(sessionScope: ReadonlySignal<string>) {
           });
 
           conversationRef.current = await lockRef.current;
+          notifyAgentOfExistingCart(
+            text => conversationRef.current?.sendContextualUpdate(text),
+            sessionScope.peek()
+          );
           if (initialMessage) {
             const instance = conversationRef.current;
             // TODO: Remove the delay once BE can handle it

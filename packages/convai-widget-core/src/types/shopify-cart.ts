@@ -1,4 +1,8 @@
-export const SHOPIFY_CART_TOOL_NAMES = ["update_cart", "get_cart"] as const;
+export const SHOPIFY_CART_TOOL_NAMES = [
+  "create_cart",
+  "get_cart",
+  "update_cart",
+] as const;
 
 export type ShopifyCartToolName = (typeof SHOPIFY_CART_TOOL_NAMES)[number];
 

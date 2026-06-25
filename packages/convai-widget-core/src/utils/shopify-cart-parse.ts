@@ -38,6 +38,7 @@ function parseLineItem(value: unknown): ShopifyCartLineItem | null {
   const merchandise = isRecord(value.merchandise) ? value.merchandise : null;
   const merchandiseProduct =
     merchandise && isRecord(merchandise.product) ? merchandise.product : null;
+  const ucpItem = isRecord(value.item) ? value.item : null;
 
   const quantity =
     readNumber(value.quantity) ??
@@ -55,12 +56,14 @@ function parseLineItem(value: unknown): ShopifyCartLineItem | null {
       readString(value.name) ??
       readString(value.product_title) ??
       readString(merchandise?.title) ??
-      readString(merchandiseProduct?.title),
+      readString(merchandiseProduct?.title) ??
+      readString(ucpItem?.title),
     variantId:
       readString(value.variant_id) ??
       readString(value.product_variant_id) ??
       readString(value.merchandise_id) ??
-      readString(merchandise?.id),
+      readString(merchandise?.id) ??
+      readString(ucpItem?.id),
   };
 }
 
@@ -71,6 +74,10 @@ function extractLineItemValues(value: unknown): unknown[] {
 
   if (!isRecord(value)) {
     return [];
+  }
+
+  if (Array.isArray(value.line_items)) {
+    return value.line_items;
   }
 
   if (Array.isArray(value.edges)) {
@@ -108,17 +115,35 @@ function extractCheckoutUrl(
   record: Record<string, unknown>
 ): string | undefined {
   return (
+    readString(record.continue_url) ??
     readString(record.checkout_url) ??
     readString(record.checkoutUrl) ??
     readString(record.checkout_url_v2)
   );
 }
 
+function unwrapStructuredCartRecord(
+  record: Record<string, unknown>
+): Record<string, unknown> | null {
+  const structuredContent = isRecord(record.structuredContent)
+    ? record.structuredContent
+    : isRecord(record.result) && isRecord(record.result.structuredContent)
+      ? record.result.structuredContent
+      : null;
+
+  if (structuredContent) {
+    return structuredContent;
+  }
+
+  return record;
+}
+
 function normalizeCartRecord(
   record: Record<string, unknown>
 ): ShopifyCartSnapshot | null {
-  const nestedCart = isRecord(record.cart) ? record.cart : null;
-  const source = nestedCart ?? record;
+  const unwrapped = unwrapStructuredCartRecord(record) ?? record;
+  const nestedCart = isRecord(unwrapped.cart) ? unwrapped.cart : null;
+  const source = nestedCart ?? unwrapped;
 
   const cartId = extractCartId(source);
   if (!cartId) {
@@ -135,7 +160,10 @@ function normalizeCartRecord(
   );
 
   const totalQuantity = readNumber(
-    source.total_quantity ?? source.item_count ?? source.lineItemCount
+    source.total_quantity ??
+      source.item_count ??
+      source.lineItemCount ??
+      source.totalQuantity
   );
 
   const lineItemCount =
@@ -145,7 +173,7 @@ function normalizeCartRecord(
 
   return {
     cartId,
-    checkoutUrl: extractCheckoutUrl(source) ?? extractCheckoutUrl(record),
+    checkoutUrl: extractCheckoutUrl(source) ?? extractCheckoutUrl(unwrapped),
     lineItems,
     lineItemCount,
   };
@@ -162,7 +190,10 @@ export function parseJsonCartPayload(
   try {
     const parsed: unknown = JSON.parse(trimmed);
     if (isRecord(parsed)) {
-      return normalizeCartRecord(parsed);
+      const snapshot = normalizeCartRecord(parsed);
+      if (snapshot) {
+        return snapshot;
+      }
     }
     if (Array.isArray(parsed)) {
       for (const entry of parsed) {

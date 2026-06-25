@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildAddToCartMessages,
   buildProductViewMessages,
   getProductDisplayName,
   getUserMessageDisplayText,
@@ -32,5 +33,25 @@ describe("product-display", () => {
         "Tell me more about Classic White Tee. Product ID: 1"
       )
     ).toBe("Tell me more about Classic White Tee");
+  });
+
+  it("includes cart id in add-to-cart backend text when provided", () => {
+    const messages = buildAddToCartMessages(
+      { id: "123", name: "Camp Stool" },
+      { cartId: "gid://shopify/Cart/abc?key=def" }
+    );
+
+    expect(messages.displayText).toBe("Add Camp Stool to cart");
+    expect(messages.backendText).toBe(
+      "Add Camp Stool to cart. Product ID: 123. Cart ID: gid://shopify/Cart/abc?key=def"
+    );
+  });
+
+  it("strips cart id from user messages without display text", () => {
+    expect(
+      getUserMessageDisplayText(
+        "Add Camp Stool to cart. Product ID: 123. Cart ID: gid://shopify/Cart/abc?key=def"
+      )
+    ).toBe("Add Camp Stool to cart");
   });
 });

@@ -363,6 +363,17 @@ export async function syncThemeCartFromSnapshot(
     : null;
 }
 
+/** Reads the live browser Ajax cart and keeps the `cart` cookie in sync. */
+export async function readBrowserCartState(): Promise<AjaxCart | null> {
+  if (!isOnShopifyStorefront()) {
+    return null;
+  }
+
+  const cart = await fetchAjaxCart();
+  syncCookieFromAjaxCart(cart);
+  return cart;
+}
+
 /** @deprecated Use syncThemeCartFromSnapshot */
 export async function refreshThemeCart(): Promise<void> {
   const cart = await fetchAjaxCart();

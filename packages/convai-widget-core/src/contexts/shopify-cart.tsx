@@ -6,6 +6,7 @@ import { useContextSafely } from "../utils/useContextSafely";
 import { useWidgetStorageScope } from "../hooks/useWidgetStorageScope";
 import { useConversation } from "./conversation";
 import {
+  bootstrapCartFromBrowser,
   buildCartContextualUpdate,
   getDynamicVariables,
   handleCartSnapshot,
@@ -73,7 +74,13 @@ export function ShopifyCartProvider({ children }: ShopifyCartProviderProps) {
   }, [sendContextualUpdate]);
 
   useEffect(() => {
-    value.restoreFromStorage();
+    void bootstrapCartFromBrowser(sessionScope.value).then(storage => {
+      if (storage) {
+        value.applyStorage(storage);
+      } else {
+        value.restoreFromStorage();
+      }
+    });
   }, [sessionScope.value, value]);
 
   useEffect(() => {
@@ -154,7 +161,11 @@ export function CartSyncWatcher() {
     }
 
     for (const entry of entries) {
-      if (entry.type === "message" && entry.role === "agent" && !entry.isStreaming) {
+      if (
+        entry.type === "message" &&
+        entry.role === "agent" &&
+        !entry.isStreaming
+      ) {
         const snapshot = parseCartFromAgentText(entry.message);
         if (snapshot) {
           const key = `agent-msg:${entry.conversationIndex}:${entry.eventId ?? snapshot.cartId}`;

@@ -10,7 +10,9 @@ import {
 import { useConversation } from "../contexts/conversation";
 import { useTextContents } from "../contexts/text-contents";
 import { formatSavedAddressLines } from "../utils/widget-address-storage";
-import { isAddToCartUserMessage, buildAddToCartMessages, getProductDisplayName } from "../utils/product-display";
+import { isAddToCartUserMessage, buildAddToCartMessages } from "../utils/product-display";
+import { useWidgetStorageScope } from "../hooks/useWidgetStorageScope";
+import { notifyAgentOfExistingCart } from "../services/cart-sync";
 import type { CartItem, CheckoutStep } from "../types/product-card";
 import type { TranscriptEntry } from "../contexts/conversation";
 
@@ -116,7 +118,8 @@ function CartConfirmationWatcher() {
 
 function AddToCartChatCard() {
   const cart = useProductCart();
-  const { sendUserMessage } = useConversation();
+  const sessionScope = useWidgetStorageScope();
+  const { sendUserMessage, sendContextualUpdate } = useConversation();
   const product = cart.pendingProduct.value;
   const sizes = product ? cart.getSizes(product) : [];
   const requiresSize = sizes.length > 0;
@@ -196,13 +199,17 @@ function AddToCartChatCard() {
             }
             const item = cart.addToCart(cart.selectedSize.value ?? "");
             if (item) {
-              const base = buildAddToCartMessages(item.product);
-              const displayText = item.size
-                ? `Add ${getProductDisplayName(item.product.name)} (size ${item.size}) to cart`
-                : base.displayText;
-              const backendText = item.product.id
-                ? `${displayText}. Product ID: ${item.product.id}`
-                : displayText;
+              const cartId = notifyAgentOfExistingCart(
+                sendContextualUpdate,
+                sessionScope.peek()
+              );
+              const { displayText, backendText } = buildAddToCartMessages(
+                item.product,
+                {
+                  size: item.size || undefined,
+                  cartId,
+                }
+              );
               sendUserMessage(backendText, { displayText });
             }
           }}

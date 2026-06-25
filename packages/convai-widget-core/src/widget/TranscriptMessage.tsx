@@ -21,6 +21,8 @@ import { stripAudioTags } from "../utils/stripAudioTags";
 import { WidgetStreamdown } from "../markdown";
 import { isImageMimeType } from "./useFileUpload";
 import { useProductCart } from "../contexts/product-cart";
+import { useWidgetStorageScope } from "../hooks/useWidgetStorageScope";
+import { getStoredCartId } from "../services/cart-sync";
 import type { ProductCardData } from "../types/product-card";
 import {
   buildAddToCartMessages,
@@ -722,6 +724,7 @@ function ProductCards({
   showImages: boolean;
 }) {
   const { isDisconnected, sendUserMessage, startSession } = useConversation();
+  const sessionScope = useWidgetStorageScope();
   const cart = useProductCart();
   const visibleProducts = products;
   const activeIndex = useSignal(0);
@@ -764,8 +767,11 @@ function ProductCards({
             product={product}
             showImages={showImages}
             onAddToCart={async element => {
-              const { displayText, backendText } =
-                buildAddToCartMessages(product);
+              const cartId = getStoredCartId(sessionScope.peek());
+              const { displayText, backendText } = buildAddToCartMessages(
+                product,
+                { cartId }
+              );
               if (isDisconnected.value) {
                 await startSession(element, backendText, { displayText });
                 return;
