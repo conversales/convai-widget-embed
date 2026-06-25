@@ -45,8 +45,8 @@ export function setShopifyCartCookie(cartId: string): boolean {
     return false;
   }
 
-  const encoded = encodeURIComponent(token);
-  document.cookie = `cart=${encoded}; path=/; max-age=${CART_COOKIE_MAX_AGE_SECONDS}; SameSite=Lax`;
+  // Shopify sets this cookie with the raw token (including ?key=); encoding breaks sync.
+  document.cookie = `cart=${token}; path=/; max-age=${CART_COOKIE_MAX_AGE_SECONDS}; SameSite=Lax`;
   return true;
 }
 

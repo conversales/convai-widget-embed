@@ -35,6 +35,10 @@ function parseLineItem(value: unknown): ShopifyCartLineItem | null {
     return null;
   }
 
+  const merchandise = isRecord(value.merchandise) ? value.merchandise : null;
+  const merchandiseProduct =
+    merchandise && isRecord(merchandise.product) ? merchandise.product : null;
+
   const quantity =
     readNumber(value.quantity) ??
     readNumber(value.qty) ??
@@ -49,20 +53,41 @@ function parseLineItem(value: unknown): ShopifyCartLineItem | null {
     title:
       readString(value.title) ??
       readString(value.name) ??
-      readString(value.product_title),
+      readString(value.product_title) ??
+      readString(merchandise?.title) ??
+      readString(merchandiseProduct?.title),
     variantId:
       readString(value.variant_id) ??
       readString(value.product_variant_id) ??
-      readString(value.merchandise_id),
+      readString(value.merchandise_id) ??
+      readString(merchandise?.id),
   };
 }
 
-function parseLineItems(value: unknown): ShopifyCartLineItem[] {
-  if (!Array.isArray(value)) {
+function extractLineItemValues(value: unknown): unknown[] {
+  if (Array.isArray(value)) {
+    return value;
+  }
+
+  if (!isRecord(value)) {
     return [];
   }
 
-  return value
+  if (Array.isArray(value.edges)) {
+    return value.edges
+      .map(edge => (isRecord(edge) ? (edge.node ?? edge) : edge))
+      .filter(entry => entry != null);
+  }
+
+  if (Array.isArray(value.nodes)) {
+    return value.nodes;
+  }
+
+  return [];
+}
+
+function parseLineItems(value: unknown): ShopifyCartLineItem[] {
+  return extractLineItemValues(value)
     .map(parseLineItem)
     .filter((item): item is ShopifyCartLineItem => item !== null);
 }

@@ -82,6 +82,56 @@ describe("shopify-cart-parse", () => {
     expect(snapshot?.cartId).toBe(SAMPLE_CART_ID);
     expect(snapshot?.lineItemCount).toBe(2);
   });
+
+  it("parses Storefront API cart line edges", () => {
+    const snapshot = parseCartToolPayload(
+      JSON.stringify({
+        id: SAMPLE_CART_ID,
+        total_quantity: 3,
+        lines: {
+          edges: [
+            {
+              node: {
+                quantity: 2,
+                merchandise: {
+                  id: "gid://shopify/ProductVariant/40123456789",
+                  title: "Scout Backpack",
+                },
+              },
+            },
+            {
+              node: {
+                quantity: 1,
+                merchandise: {
+                  id: "gid://shopify/ProductVariant/40987654321",
+                },
+              },
+            },
+          ],
+        },
+      })
+    );
+
+    expect(snapshot).toEqual({
+      cartId: SAMPLE_CART_ID,
+      checkoutUrl: undefined,
+      lineItems: [
+        {
+          id: undefined,
+          quantity: 2,
+          title: "Scout Backpack",
+          variantId: "gid://shopify/ProductVariant/40123456789",
+        },
+        {
+          id: undefined,
+          quantity: 1,
+          title: undefined,
+          variantId: "gid://shopify/ProductVariant/40987654321",
+        },
+      ],
+      lineItemCount: 3,
+    });
+  });
 });
 
 describe("cart-sync storage", () => {

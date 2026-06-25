@@ -28,9 +28,7 @@ export function ExpandableTriggerActions({
   const { isDisconnected } = useConversation();
   const text = useTextContents();
   const isFull = variant === "full";
-  const compactCollapsed = !isFull && !expanded.value;
-  const actionPad = compactCollapsed ? "p-0.5" : "p-1";
-  const launcherButtonClass = compactCollapsed ? "h-8 min-w-8" : undefined;
+  const actionPad = "p-1";
   const toggleExpanded = useCallback(() => {
     expanded.value = !expanded.value;
   }, [expanded]);
@@ -42,7 +40,7 @@ export function ExpandableTriggerActions({
           visible={!expanded.value && !isDisconnected.value}
           className={actionPad}
         >
-          <Avatar size={compactCollapsed ? "xs" : "sm"} />
+          <Avatar size="sm" />
         </SizeTransition>
       )}
       <SizeTransition
@@ -53,19 +51,18 @@ export function ExpandableTriggerActions({
         <CallButton
           iconOnly
           isDisconnected={false}
-          className={launcherButtonClass}
         />
       </SizeTransition>
       <SizeTransition
         visible={!textOnly.value && !expanded.value && !isDisconnected.value}
         className={actionPad}
       >
-        <TriggerMuteButton className={launcherButtonClass} />
+        <TriggerMuteButton />
       </SizeTransition>
       <SizeTransition grow={isDisconnected.value} visible className={actionPad}>
         <div className="relative">
           <Button
-            className={clsx("w-full", launcherButtonClass)}
+            className="w-full"
           variant="primary"
           iconClassName={clsx(
             (expanded.value || !isDisconnected.value) &&

@@ -17,13 +17,16 @@ export function CompactExpandableTrigger({
   return (
     <div
       className={clsx(
-        "rounded-compact-sheet flex items-center gap-0.5 p-1",
+        "rounded-compact-sheet flex min-h-11 items-center gap-1 p-1.5",
         className
       )}
       {...rest}
     >
-      <SizeTransition visible={!expanded.value} className="p-0.5">
-        <Avatar size="xs" />
+      <SizeTransition visible={!expanded.value} className="shrink-0 p-0.5">
+        <Avatar
+          size="sm"
+          imageClassName="!bg-contain !bg-no-repeat bg-center"
+        />
       </SizeTransition>
       <ExpandableTriggerActions expanded={expanded} onDismiss={onDismiss} />
     </div>

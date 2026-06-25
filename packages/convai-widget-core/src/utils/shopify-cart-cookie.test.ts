@@ -36,9 +36,7 @@ describe("shopify-cart-cookie", () => {
     expect(setShopifyCartCookie(SAMPLE_CART_GID)).toBe(true);
     expect(cookies[0]).toContain("cart=");
     expect(cookies[0]).toContain(
-      encodeURIComponent(
-        "hWNDkwg7UMZV9kOTMnLMOIX7?key=20619f037279ec2c6a7d53e0f4f3c022"
-      )
+      "hWNDkwg7UMZV9kOTMnLMOIX7?key=20619f037279ec2c6a7d53e0f4f3c022"
     );
   });
 });

@@ -160,6 +160,12 @@
       <section class="card">
         <h1>Conversales unpkg embed test</h1>
         <p>If the package is working, the widget should render on this page.</p>
+        <p>
+          <strong>Shopify cart sync:</strong> <code>/cart.js</code> and
+          <code>/cart/add.js</code> only run when the widget is embedded on your
+          live Shopify storefront. They do not run on <code>localhost</code>
+          (browser same-origin rules). Test cart sync on the store, not this page.
+        </p>
         <p id="source-label"></p>
         <form class="controls" id="config-form">
           <label class="field">

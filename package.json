@@ -22,7 +22,8 @@
     "dev:embed": "node scripts/dev-embed.mjs",
     "clean": "turbo clean",
     "changeset": "changeset",
-    "publish": "turbo build lint && changeset publish"
+    "publish": "turbo build lint && changeset publish",
+    "publish:widgets": "turbo build lint --filter=@conversales/convai-widget-core --filter=@conversales/convai-widget-embed && changeset publish"
   },
   "devDependencies": {
     "@changesets/cli": "^2.29.8",

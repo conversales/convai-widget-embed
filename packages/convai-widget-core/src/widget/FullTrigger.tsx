@@ -21,11 +21,14 @@ export function FullTrigger({
 
   return (
     <div
-      className={clsx("flex flex-col gap-0.5 rounded-sheet p-1", className)}
+      className={clsx("flex min-h-11 flex-col gap-1 rounded-sheet p-1.5", className)}
       {...rest}
     >
       <div className="flex min-w-0 items-center gap-1.5 p-0.5">
-        <Avatar size="xs" />
+        <Avatar
+          size="sm"
+          imageClassName="!bg-contain !bg-no-repeat bg-center"
+        />
         <div className="relative max-w-40 truncate text-xs">
           <span
             className={clsx(

@@ -1,5 +1,11 @@
 # @elevenlabs/convai-widget-embed
 
+## 0.13.2
+
+### Patch Changes
+
+- Fix Shopify theme cart sync with Ajax cart rebuild, section HTML refresh, and Storefront API line parsing. Restore launcher height and improve brand avatar display on collapsed triggers.
+
 ## 0.13.1
 
 ### Patch Changes

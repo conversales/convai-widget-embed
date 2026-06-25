@@ -27,6 +27,7 @@ import {
 } from "../utils/widget-address-storage";
 import { resolveCheckoutUrl, CHECKOUT_FLOW_STEPS } from "../utils/checkout";
 import { findCheckoutUrlInTranscript } from "../utils/agent-response";
+import { addVariantToThemeCart } from "../utils/shopify-theme-cart";
 
 type ProductCartSetup = ReturnType<typeof useProductCartSetup>;
 
@@ -266,6 +267,11 @@ function useProductCartSetup(sessionScope: string) {
     selectedSize.value = null;
     checkoutStep.value = "cart_pending";
     persistCart();
+
+    if (product.id) {
+      void addVariantToThemeCart(product.id, 1);
+    }
+
     return item;
   };
 

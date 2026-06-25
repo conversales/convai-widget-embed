@@ -23,13 +23,16 @@ export function ExpandButton({
     <button
       onClick={handleClick}
       className={clsx(
-        "pointer-events-auto flex h-10 w-10 items-center justify-center rounded-full transition-all duration-200 hover:scale-105 active:scale-95",
+        "pointer-events-auto flex h-11 w-11 items-center justify-center rounded-full transition-all duration-200 hover:scale-105 active:scale-95",
         className
       )}
       aria-label="Open chat"
       {...rest}
     >
-      <Avatar size="xs" className="h-8 w-8" />
+      <Avatar
+        size="sm"
+        imageClassName="!bg-contain !bg-no-repeat bg-center"
+      />
     </button>
   );
 }

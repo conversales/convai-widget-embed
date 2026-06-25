@@ -15,11 +15,14 @@ export function CompactTrigger({
 }: CompactTriggerProps) {
   return (
     <div
-      className={clsx("rounded-compact-sheet flex items-center gap-0.5 p-1", className)}
+      className={clsx("rounded-compact-sheet flex min-h-11 items-center gap-1 p-1.5", className)}
       {...rest}
     >
-      <div className="relative mx-0.5">
-        <Avatar size="xs" />
+      <div className="relative mx-0.5 shrink-0">
+        <Avatar
+          size="sm"
+          imageClassName="!bg-contain !bg-no-repeat bg-center"
+        />
         <ShopifyCartBadge />
       </div>
       <TriggerActions onDismiss={onDismiss} />

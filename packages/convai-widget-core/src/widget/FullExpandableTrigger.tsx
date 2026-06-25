@@ -22,7 +22,7 @@ export function FullExpandableTrigger({
   return (
     <div
       className={clsx(
-        "transition-[border-radius] flex flex-col gap-0.5 p-1",
+        "transition-[border-radius] flex min-h-11 flex-col gap-1 p-1.5",
         !expanded.value && isDisconnected.value
           ? "rounded-sheet"
           : "rounded-compact-sheet",
@@ -32,10 +32,13 @@ export function FullExpandableTrigger({
     >
       <SizeTransition
         visible={!expanded.value && isDisconnected.value}
-        className="p-0.5"
+        className="shrink-0 p-0.5"
       >
         <div className="flex min-w-0 items-center gap-1.5">
-          <Avatar size="xs" />
+          <Avatar
+            size="sm"
+            imageClassName="!bg-contain !bg-no-repeat bg-center"
+          />
           <div className="max-w-40 truncate text-xs">{text.main_label}</div>
         </div>
       </SizeTransition>
