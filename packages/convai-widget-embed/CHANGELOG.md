@@ -1,5 +1,11 @@
 # @elevenlabs/convai-widget-embed
 
+## 0.13.3
+
+### Patch Changes
+
+- Fix Shopify cart section refresh 400 errors, use browser cart cookie as cart id source of truth, incremental cart adds, and circular expanded launcher button.
+
 ## 0.13.2
 
 ### Patch Changes

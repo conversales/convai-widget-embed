@@ -33,6 +33,18 @@ export function ExpandableTriggerActions({
     expanded.value = !expanded.value;
   }, [expanded]);
 
+  if (expanded.value) {
+    return (
+      <Button
+        className="h-11 w-11 min-w-11 shrink-0 px-0"
+        variant="primary"
+        icon="chevron-up"
+        iconClassName="transition-transform duration-200 -rotate-180"
+        aria-label={text.collapse}
+      />
+    );
+  }
+
   return (
     <>
       {variant === "full" && (

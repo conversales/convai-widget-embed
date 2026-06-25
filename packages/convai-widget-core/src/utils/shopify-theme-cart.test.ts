@@ -24,7 +24,7 @@ describe("shopify-theme-cart", () => {
     });
   });
 
-  it("rebuilds the ajax cart when counts differ and variant ids are known", async () => {
+  it("adds items incrementally without clearing the cart", async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce({
@@ -33,16 +33,13 @@ describe("shopify-theme-cart", () => {
       })
       .mockResolvedValueOnce({
         ok: true,
-        json: async () => ({
-          sections: {
-            "cart-icon-bubble":
-              '<div id="shopify-section-cart-icon-bubble"></div>',
-          },
-        }),
+        json: async () => ({ item_count: 0 }),
       })
       .mockResolvedValueOnce({
         ok: true,
         json: async () => ({
+          item_count: 2,
+          token: "c1-test?key=abc",
           sections: {
             "cart-icon-bubble":
               '<div id="shopify-section-cart-icon-bubble">2</div>',
@@ -53,14 +50,7 @@ describe("shopify-theme-cart", () => {
         ok: true,
         json: async () => ({
           item_count: 2,
-          items: [{ variant_id: 1, quantity: 2 }],
-        }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          "cart-icon-bubble":
-            '<div id="shopify-section-cart-icon-bubble">2</div>',
+          token: "c1-test?key=abc",
         }),
       });
 
@@ -78,37 +68,36 @@ describe("shopify-theme-cart", () => {
     });
 
     expect(result).toEqual({ itemCount: 2 });
-    expect(fetchMock).toHaveBeenCalledWith(
+    expect(fetchMock).not.toHaveBeenCalledWith(
       "/cart/clear.js",
-      expect.objectContaining({ method: "POST" })
+      expect.anything()
+    );
+    expect(fetchMock).not.toHaveBeenCalledWith(
+      expect.stringMatching(/^\/?\?sections=/),
+      expect.anything()
     );
     expect(fetchMock).toHaveBeenCalledWith(
       "/cart/add.js",
       expect.objectContaining({
         method: "POST",
-        body: expect.stringContaining('"sections":"cart-drawer'),
+        body: expect.stringContaining(
+          '"sections":"cart-drawer,cart-icon-bubble'
+        ),
       })
     );
     expect(fetchMock).toHaveBeenCalledWith(
-      "/cart.js",
-      expect.objectContaining({ cache: "no-store" })
+      "/cart/add.js",
+      expect.objectContaining({
+        body: expect.stringContaining('"sections_url":"/cart"'),
+      })
     );
   });
 
-  it("skips ajax rebuild when the theme cart already matches", async () => {
-    const fetchMock = vi
-      .fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({ item_count: 1 }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        json: async () => ({
-          "cart-icon-bubble":
-            '<div id="shopify-section-cart-icon-bubble">1</div>',
-        }),
-      });
+  it("skips ajax add when the theme cart already matches", async () => {
+    const fetchMock = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ item_count: 1, token: "c1-test?key=abc" }),
+    });
 
     vi.stubGlobal("fetch", fetchMock);
 
@@ -124,10 +113,6 @@ describe("shopify-theme-cart", () => {
     });
 
     expect(result).toEqual({ itemCount: 1 });
-    expect(fetchMock).not.toHaveBeenCalledWith(
-      "/cart/clear.js",
-      expect.anything()
-    );
     expect(fetchMock).not.toHaveBeenCalledWith(
       "/cart/add.js",
       expect.anything()

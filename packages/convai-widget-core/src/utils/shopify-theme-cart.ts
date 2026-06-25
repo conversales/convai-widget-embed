@@ -1,6 +1,9 @@
 import type { ShopifyCartSnapshot } from "../types/shopify-cart";
 import {
+  cartTokenToGid,
   extractNumericVariantId,
+  readCartIdFromCookie,
+  readShopifyCartCookie,
   setShopifyCartCookie,
 } from "./shopify-cart-cookie";
 
@@ -25,17 +28,16 @@ const THEME_CART_EVENTS = [
   "theme:cart:change",
 ] as const;
 
-const SECTION_IDS = [
+/** Shopify allows at most 5 bundled sections per cart API request. */
+const CART_MUTATION_SECTIONS = [
   "cart-drawer",
-  "cart-notification",
   "cart-icon-bubble",
-  "cart-items",
+  "cart-notification",
   "cart-live-region-text",
-  "mini-cart",
-  "header",
 ] as const;
 
-const SECTIONS_PARAM = SECTION_IDS.join(",");
+const SECTIONS_PARAM = CART_MUTATION_SECTIONS.join(",");
+const SECTIONS_URL = "/cart";
 
 const LOG_PREFIX = "[CartSync]";
 
@@ -168,6 +170,18 @@ async function fetchAjaxCart(): Promise<AjaxCart | null> {
   }
 }
 
+function syncCookieFromAjaxCart(cart: AjaxCart | null): void {
+  if (cart?.token) {
+    setShopifyCartCookie(cartTokenToGid(cart.token));
+    return;
+  }
+
+  const cookieToken = readShopifyCartCookie();
+  if (cookieToken) {
+    return;
+  }
+}
+
 function cartMatchesSnapshot(
   cart: AjaxCart | null,
   snapshot: ShopifyCartSnapshot
@@ -188,33 +202,12 @@ function snapshotHasAjaxLineItems(snapshot: ShopifyCartSnapshot): boolean {
   });
 }
 
-async function clearAjaxCart(): Promise<AjaxCartMutationResponse | null> {
-  if (typeof fetch === "undefined") {
-    return null;
-  }
-
-  try {
-    const response = await fetch("/cart/clear.js", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        sections: SECTIONS_PARAM,
-        sections_url: "/",
-      }),
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    return (await response.json()) as AjaxCartMutationResponse;
-  } catch {
-    return null;
-  }
+function buildMutationBody(payload: Record<string, unknown>): string {
+  return JSON.stringify({
+    ...payload,
+    sections: SECTIONS_PARAM,
+    sections_url: SECTIONS_URL,
+  });
 }
 
 async function addItemsViaAjaxCart(
@@ -248,11 +241,7 @@ async function addItemsViaAjaxCart(
         Accept: "application/json",
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({
-        items,
-        sections: SECTIONS_PARAM,
-        sections_url: "/",
-      }),
+      body: buildMutationBody({ items }),
     });
 
     if (!response.ok) {
@@ -265,28 +254,6 @@ async function addItemsViaAjaxCart(
   }
 }
 
-async function refreshCartSections(): Promise<void> {
-  if (typeof fetch === "undefined") {
-    return;
-  }
-
-  try {
-    const response = await fetch(`/?sections=${SECTIONS_PARAM}`, {
-      credentials: "same-origin",
-      headers: { Accept: "application/json" },
-      cache: "no-store",
-    });
-    if (!response.ok) {
-      return;
-    }
-
-    const sections = (await response.json()) as Record<string, string>;
-    applySectionHtml(sections);
-  } catch {
-    // Section refresh is best-effort for theme compatibility.
-  }
-}
-
 function applyMutationSections(
   mutation: AjaxCartMutationResponse | null | undefined
 ): void {
@@ -295,9 +262,19 @@ function applyMutationSections(
   }
 }
 
+function finalizeThemeCart(cart: AjaxCart | null): void {
+  if (cart) {
+    syncCookieFromAjaxCart(cart);
+    publishThemeCartUpdate(cart);
+    dispatchThemeCartEvents(cart);
+    return;
+  }
+
+  dispatchThemeCartEvents();
+}
+
 /**
  * Adds a variant to the theme Ajax cart (/cart/add.js) on Shopify storefronts.
- * Use when the widget's in-chat add-to-cart flow has a variant id available.
  */
 export async function addVariantToThemeCart(
   variantId: string,
@@ -315,22 +292,18 @@ export async function addVariantToThemeCart(
     return null;
   }
 
+  let cart = await fetchAjaxCart();
+  syncCookieFromAjaxCart(cart);
+
   const added = await addItemsViaAjaxCart({
-    cartId: "",
+    cartId: readCartIdFromCookie() ?? "",
     lineItems: [{ variantId, quantity }],
     lineItemCount: quantity,
   });
   applyMutationSections(added);
 
-  const cart = (await fetchAjaxCart()) ?? added ?? null;
-  if (cart) {
-    publishThemeCartUpdate(cart);
-    dispatchThemeCartEvents(cart);
-  } else {
-    dispatchThemeCartEvents();
-  }
-
-  await refreshCartSections();
+  cart = (await fetchAjaxCart()) ?? added ?? cart;
+  finalizeThemeCart(cart);
 
   if (cart && typeof cart.item_count === "number") {
     return { itemCount: cart.item_count };
@@ -341,9 +314,9 @@ export async function addVariantToThemeCart(
 
 /**
  * Syncs the browser Ajax cart with a Storefront API cart snapshot:
- * 1. Sets the Shopify `cart` cookie from the cart GID
- * 2. Rebuilds via /cart/clear.js + /cart/add.js when variant ids are known
- * 3. Applies bundled section HTML and dispatches theme cart events
+ * 1. Keeps the browser `cart` cookie as the session source of truth
+ * 2. Adds line items incrementally via /cart/add.js (never clears the cart)
+ * 3. Applies bundled section HTML from the cart API response
  */
 export async function syncThemeCartFromSnapshot(
   snapshot: ShopifyCartSnapshot
@@ -353,40 +326,32 @@ export async function syncThemeCartFromSnapshot(
     return null;
   }
 
-  setShopifyCartCookie(snapshot.cartId);
-
   let cart = await fetchAjaxCart();
-  const canRebuildAjaxCart = snapshotHasAjaxLineItems(snapshot);
+  syncCookieFromAjaxCart(cart);
 
-  if (!cartMatchesSnapshot(cart, snapshot) && canRebuildAjaxCart) {
-    const cleared = await clearAjaxCart();
-    applyMutationSections(cleared);
+  const browserCartId = readCartIdFromCookie();
+  if (!browserCartId && snapshot.cartId) {
+    setShopifyCartCookie(snapshot.cartId);
+    cart = (await fetchAjaxCart()) ?? cart;
+  }
 
+  const canAddViaAjax = snapshotHasAjaxLineItems(snapshot);
+  const needsAdd = canAddViaAjax && !cartMatchesSnapshot(cart, snapshot);
+
+  if (needsAdd) {
     const added = await addItemsViaAjaxCart(snapshot);
     applyMutationSections(added);
-
     cart = (await fetchAjaxCart()) ?? cart;
-    setShopifyCartCookie(snapshot.cartId);
-  } else if (!cartMatchesSnapshot(cart, snapshot)) {
+  } else if (!cartMatchesSnapshot(cart, snapshot) && snapshot.cartId) {
     setShopifyCartCookie(snapshot.cartId);
     cart = (await fetchAjaxCart()) ?? cart;
   }
 
-  if (cart) {
-    publishThemeCartUpdate(cart);
-    dispatchThemeCartEvents(cart);
-  } else {
-    dispatchThemeCartEvents();
-  }
-
-  await refreshCartSections();
+  finalizeThemeCart(cart);
 
   if (!cart) {
     cart = await fetchAjaxCart();
-    if (cart) {
-      publishThemeCartUpdate(cart);
-      dispatchThemeCartEvents(cart);
-    }
+    finalizeThemeCart(cart);
   }
 
   if (cart && typeof cart.item_count === "number") {
@@ -401,9 +366,5 @@ export async function syncThemeCartFromSnapshot(
 /** @deprecated Use syncThemeCartFromSnapshot */
 export async function refreshThemeCart(): Promise<void> {
   const cart = await fetchAjaxCart();
-  if (cart) {
-    publishThemeCartUpdate(cart);
-  }
-  dispatchThemeCartEvents(cart ?? undefined);
-  await refreshCartSections();
+  finalizeThemeCart(cart);
 }

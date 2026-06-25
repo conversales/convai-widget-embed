@@ -66,3 +66,14 @@ export function readShopifyCartCookie(): string | null {
     return match[1];
   }
 }
+
+/** Builds a Storefront cart GID from the browser `cart` cookie value. */
+export function cartTokenToGid(token: string): string {
+  return `gid://shopify/Cart/${token}`;
+}
+
+/** Reads the active browser cart id from the Shopify `cart` cookie, if set. */
+export function readCartIdFromCookie(): string | null {
+  const token = readShopifyCartCookie();
+  return token ? cartTokenToGid(token) : null;
+}

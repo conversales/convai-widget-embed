@@ -5,6 +5,7 @@ import type {
 } from "../types/shopify-cart";
 import { isShopifyCartToolName } from "../types/shopify-cart";
 import { parseCartToolPayload } from "../utils/shopify-cart-parse";
+import { readCartIdFromCookie } from "../utils/shopify-cart-cookie";
 import { syncThemeCartFromSnapshot } from "../utils/shopify-theme-cart";
 
 const LOG_PREFIX = "[CartSync]";
@@ -97,7 +98,9 @@ export function saveShopifyCartStorage(
 }
 
 export function getStoredCartId(scope: string): string | null {
-  return loadShopifyCartStorage(scope)?.cartId ?? null;
+  return (
+    readCartIdFromCookie() ?? loadShopifyCartStorage(scope)?.cartId ?? null
+  );
 }
 
 export function getDynamicVariables(scope: string): Record<string, string> {
@@ -138,6 +141,10 @@ async function applyCartSnapshotToScope(
   );
 
   const themeState = await syncThemeCartFromSnapshot(snapshot);
+  const cartIdFromCookie = readCartIdFromCookie();
+  if (cartIdFromCookie) {
+    storage.cartId = cartIdFromCookie;
+  }
   if (themeState && themeState.itemCount >= 0) {
     storage.lineItemCount = themeState.itemCount;
     if (typeof localStorage !== "undefined") {

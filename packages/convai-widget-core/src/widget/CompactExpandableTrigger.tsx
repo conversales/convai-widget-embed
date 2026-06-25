@@ -17,7 +17,9 @@ export function CompactExpandableTrigger({
   return (
     <div
       className={clsx(
-        "rounded-compact-sheet flex min-h-11 items-center gap-1 p-1.5",
+        expanded.value
+          ? "flex items-center justify-center rounded-full p-0"
+          : "rounded-compact-sheet flex min-h-11 items-center gap-1 p-1.5",
         className
       )}
       {...rest}
