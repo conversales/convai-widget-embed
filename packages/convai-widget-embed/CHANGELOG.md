@@ -1,5 +1,11 @@
 # @elevenlabs/convai-widget-embed
 
+## 0.13.1
+
+### Patch Changes
+
+- Pin `@radix-ui/react-slot` to 1.2.3 to fix embed build warning about undefined React `use()` on Preact compat.
+
 ## 0.13.0
 
 ### Minor Changes
