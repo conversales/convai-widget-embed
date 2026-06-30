@@ -1,5 +1,11 @@
 # @elevenlabs/convai-widget-embed
 
+## 0.13.4
+
+### Patch Changes
+
+- Improve product detail cards, real estate listing display, normal chat history controls, and browser test reliability.
+
 ## 0.13.3
 
 ### Patch Changes
