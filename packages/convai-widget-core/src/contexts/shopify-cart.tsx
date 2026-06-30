@@ -21,6 +21,7 @@ import {
 import { isShopifyCartToolName } from "../types/shopify-cart";
 import type { ShopifyCartStorage } from "../types/shopify-cart";
 import { parseCartFromAgentText } from "../utils/shopify-cart-parse";
+import { useCartCommerceEnabled } from "./widget-config";
 
 export type { CartSyncBridge };
 export { getCartSyncBridge, setCartSyncBridge };
@@ -142,6 +143,16 @@ export function useShopifyCart() {
 }
 
 export function CartSyncWatcher() {
+  const cartEnabled = useCartCommerceEnabled();
+
+  if (!cartEnabled.value) {
+    return null;
+  }
+
+  return <CartSyncWatcherInner />;
+}
+
+function CartSyncWatcherInner() {
   const sessionScope = useWidgetStorageScope();
   const { transcript } = useConversation();
   const processedResponseKeys = useRef(new Set<string>());

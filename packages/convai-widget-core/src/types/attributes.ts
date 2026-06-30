@@ -64,6 +64,7 @@ export const CustomAttributeList = [
   "allow-events",
   "show-agent-status",
   "show-conversation-id",
+  "business-mode",
   "environment",
 ] as const;
 

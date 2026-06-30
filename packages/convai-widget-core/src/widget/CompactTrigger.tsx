@@ -15,7 +15,7 @@ export function CompactTrigger({
 }: CompactTriggerProps) {
   return (
     <div
-      className={clsx("rounded-compact-sheet flex min-h-11 items-center gap-1 p-1.5", className)}
+      className={clsx("rounded-compact-sheet flex min-h-11 items-center gap-0.5 p-1.5", className)}
       {...rest}
     >
       <div className="relative mx-0.5 shrink-0">
@@ -25,7 +25,9 @@ export function CompactTrigger({
         />
         <ShopifyCartBadge />
       </div>
-      <TriggerActions onDismiss={onDismiss} />
+      <div className="flex shrink-0 items-center">
+        <TriggerActions onDismiss={onDismiss} />
+      </div>
     </div>
   );
 }

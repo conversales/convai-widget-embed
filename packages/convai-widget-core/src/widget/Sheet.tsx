@@ -71,6 +71,7 @@ export function Sheet({ open, onDismiss, forceFullscreen }: SheetProps) {
       (!isDisconnected.value && config.value.transcript_enabled)
   );
   const scrollPinned = useSignal(true);
+
   const showAvatar = useComputed(
     () =>
       currentContent.value !== "feedback" &&

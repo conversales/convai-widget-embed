@@ -19,7 +19,7 @@ export function CompactExpandableTrigger({
       className={clsx(
         expanded.value
           ? "flex items-center justify-center rounded-full p-0"
-          : "rounded-compact-sheet flex min-h-11 items-center gap-1 p-1.5",
+          : "rounded-compact-sheet flex min-h-11 items-center gap-0.5 p-1.5",
         className
       )}
       {...rest}
@@ -30,7 +30,9 @@ export function CompactExpandableTrigger({
           imageClassName="!bg-contain !bg-no-repeat bg-center"
         />
       </SizeTransition>
-      <ExpandableTriggerActions expanded={expanded} onDismiss={onDismiss} />
+      <div className="flex shrink-0 items-center">
+        <ExpandableTriggerActions expanded={expanded} onDismiss={onDismiss} />
+      </div>
     </div>
   );
 }

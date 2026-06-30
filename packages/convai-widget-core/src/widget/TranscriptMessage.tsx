@@ -16,21 +16,22 @@ import {
   useMarkdownLinkConfig,
   useEndFeedbackType,
   useWidgetConfig,
+  useBusinessModeFeatures,
 } from "../contexts/widget-config";
 import { stripAudioTags } from "../utils/stripAudioTags";
 import { WidgetStreamdown } from "../markdown";
 import { isImageMimeType } from "./useFileUpload";
 import { useProductCart } from "../contexts/product-cart";
-import { useWidgetStorageScope } from "../hooks/useWidgetStorageScope";
-import { getStoredCartId } from "../services/cart-sync";
+import { useSheetContent } from "../contexts/sheet-content";
 import type { ProductCardData } from "../types/product-card";
+import { ProductExpandedCard } from "./ProductExpandedCard";
 import {
-  buildAddToCartMessages,
-  buildProductViewMessages,
+  buildProductDetailsRequestMessages,
   extractProductIdFromRecord,
   extractProductIdFromText,
   getProductDisplayName,
   getUserMessageDisplayText,
+  isProductDetailsRequestMessage,
   withProductDisplayName,
 } from "../utils/product-display";
 import {
@@ -42,17 +43,36 @@ import {
   extractSizesFromRecord,
 } from "../utils/product-message-parse";
 import {
+  extractAgentProductDetailText,
+  getProductDetailAgentReplyText,
+  getRequestedProductNameFromDetailMessage,
+  isProductDetailAgentResponse,
+  isProductDetailStructuredMessage,
+  looksLikeMarkdownMessage,
+  parseAgentProductDetailContent,
+} from "../utils/product-details";
+import {
   cleanAgentUrl,
   formatCheckoutAgentMessage,
 } from "../utils/agent-response";
-import { isCheckoutFlowStep } from "../utils/checkout";
+import { isCheckoutFlowStep, isAgentReplyAfterAddToCart } from "../utils/checkout";
+import { formatProductPriceForDisplay } from "../utils/product-price-display";
 
 interface TranscriptMessageProps {
   entry: DisplayTranscriptEntry;
+  entryIndex: number;
+  entries: DisplayTranscriptEntry[];
   animateIn: boolean;
 }
 
 type ProductCard = ProductCardData;
+
+function productsMatch(a: ProductCard, b: ProductCard): boolean {
+  if (a.id && b.id && a.id === b.id) {
+    return true;
+  }
+  return a.name.trim().toLowerCase() === b.name.trim().toLowerCase();
+}
 
 function firstNonEmptyString(...values: unknown[]): string | undefined {
   for (const value of values) {
@@ -473,6 +493,22 @@ function parseNumberedProducts(message: string): {
   };
 }
 
+function isProductListingBulletLine(line: string): boolean {
+  const content = line.replace(/^[-*•]\s+/, "").trim();
+  if (!content || isProductActionBullet(line)) {
+    return false;
+  }
+
+  if (/^(?:Title|Name|Price|Description|Available|Image|URL|Category|Product\s+ID):/i.test(content)) {
+    return false;
+  }
+
+  return (
+    /Price:\s*(?:[$€£₹]|Rs\.?)/i.test(content) ||
+    /(?:Image(?:\s+URL)?|URL|Product\s+URL):\s*https?:\/\//i.test(content)
+  );
+}
+
 function parseBulletProducts(message: string): {
   products: ProductCard[];
   cleanedMessage: string;
@@ -483,7 +519,8 @@ function parseBulletProducts(message: string): {
   const bulletLines = lines
     .map((line, index) => ({ line, index }))
     .filter(({ line }) => /^[-*•]\s+/.test(line))
-    .filter(({ line }) => !isProductActionBullet(line));
+    .filter(({ line }) => !isProductActionBullet(line))
+    .filter(({ line }) => isProductListingBulletLine(line));
   if (bulletLines.length === 0) {
     return {
       products: [],
@@ -534,6 +571,24 @@ function parseProductsFromMessage(message: string): {
     };
   }
 
+  if (looksLikeMarkdownMessage(trimmed)) {
+    return {
+      products: [],
+      cleanedMessage: message,
+      introMessage: "",
+      outroMessage: "",
+    };
+  }
+
+  if (isProductDetailStructuredMessage(trimmed)) {
+    return {
+      products: [],
+      cleanedMessage: "",
+      introMessage: "",
+      outroMessage: getProductDetailAgentReplyText(trimmed),
+    };
+  }
+
   const structured = parseStructuredProductBlocks(trimmed);
   if (structured.products.length > 0) {
     return structured;
@@ -560,6 +615,13 @@ function parseProductsFromMessage(message: string): {
 const DEFAULT_PRODUCT_SKELETON_COUNT = 3;
 
 function messageExpectsProducts(message: string): boolean {
+  if (
+    isProductDetailStructuredMessage(message) ||
+    looksLikeMarkdownMessage(message)
+  ) {
+    return false;
+  }
+
   return (
     messageHasStructuredProducts(message) ||
     /(?:^|\n)\s*Title:\s*.+\n\s*Price:/im.test(message) ||
@@ -719,16 +781,22 @@ function ProductCardSkeletons({
 function ProductCards({
   products,
   showImages,
+  showCartActions,
 }: {
   products: ProductCard[];
   showImages: boolean;
+  showCartActions: boolean;
 }) {
-  const { isDisconnected, sendUserMessage, startSession } = useConversation();
-  const sessionScope = useWidgetStorageScope();
   const cart = useProductCart();
+  const { activeProduct, openProductDetail, closeProductDetail } = useSheetContent();
+  const { isDisconnected, sendUserMessage, startSession } = useConversation();
   const visibleProducts = products;
   const activeIndex = useSignal(0);
   const listRef = useRef<HTMLDivElement | null>(null);
+  const expandedProduct = activeProduct.value;
+  const matchedExpandedProduct =
+    expandedProduct &&
+    visibleProducts.find(product => productsMatch(product, expandedProduct));
 
   const scrollToIndex = (index: number) => {
     const nextIndex = Math.max(0, Math.min(index, visibleProducts.length - 1));
@@ -743,6 +811,24 @@ function ProductCards({
   if (visibleProducts.length === 0) {
     return null;
   }
+
+  const handleViewDetails = (product: ProductCard) => {
+    if (matchedExpandedProduct && productsMatch(product, matchedExpandedProduct)) {
+      closeProductDetail();
+      return;
+    }
+
+    openProductDetail(product);
+    const { displayText, backendText } = buildProductDetailsRequestMessages(product);
+
+    void (async () => {
+      if (isDisconnected.peek()) {
+        await startSession(document.body, backendText, { displayText });
+        return;
+      }
+      sendUserMessage(backendText, { displayText });
+    })();
+  };
 
   return (
     <div className="product-card-carousel w-full max-w-full">
@@ -766,30 +852,20 @@ function ProductCards({
             key={`product-${index}`}
             product={product}
             showImages={showImages}
-            onAddToCart={async element => {
-              const cartId = getStoredCartId(sessionScope.peek());
-              const { displayText, backendText } = buildAddToCartMessages(
-                product,
-                { cartId }
-              );
-              if (isDisconnected.value) {
-                await startSession(element, backendText, { displayText });
+            showCartActions={showCartActions}
+            isExpanded={
+              matchedExpandedProduct
+                ? productsMatch(product, matchedExpandedProduct)
+                : false
+            }
+            onAddToCart={() => {
+              if (!showCartActions) {
                 return;
               }
               cart.openAddToCart(product);
             }}
-            onViewDetails={async element => {
-              if (product.productUrl) {
-                window.open(product.productUrl, "_blank", "noopener,noreferrer");
-                return;
-              }
-              const { displayText, backendText } =
-                buildProductViewMessages(product);
-              if (isDisconnected.value) {
-                await startSession(element, backendText, { displayText });
-                return;
-              }
-              sendUserMessage(backendText, { displayText });
+            onViewDetails={() => {
+              handleViewDetails(product);
             }}
           />
         ))}
@@ -821,18 +897,27 @@ function ProductCards({
 function ProductCardItem({
   product,
   showImages,
+  showCartActions,
+  isExpanded = false,
   onAddToCart,
   onViewDetails,
 }: {
   product: ProductCard;
   showImages: boolean;
+  showCartActions: boolean;
+  isExpanded?: boolean;
   onAddToCart: (element: HTMLElement) => void | Promise<void>;
-  onViewDetails: (element: HTMLElement) => void | Promise<void>;
+  onViewDetails: () => void;
 }) {
   const cart = useProductCart();
+  const features = useBusinessModeFeatures();
   const imageLoaded = useSignal(false);
   const imageRef = useRef<HTMLImageElement | null>(null);
-  const cartActive = cart.isCartActive(product.name);
+  const cartActive = showCartActions && cart.isCartActive(product.name);
+  const displayPrice = formatProductPriceForDisplay(
+    product.price,
+    features.value.priceDisplayMode
+  );
 
   useEffect(() => {
     imageLoaded.value = false;
@@ -843,9 +928,21 @@ function ProductCardItem({
   }, [product.imageUrl]);
 
   return (
-    <article className="product-card product-card-loaded">
+    <article
+      className={clsx(
+        "product-card product-card-loaded",
+        isExpanded && "product-card-expanded-active"
+      )}
+    >
       {showImages && (
-        <div className="product-card-media">
+        <button
+          type="button"
+          className="product-card-media product-card-media-button"
+          aria-label={`View ${product.name}`}
+          onClick={() => {
+            onViewDetails();
+          }}
+        >
           {!imageLoaded.value && (
             <div className="product-card-media-skeleton" aria-hidden="true" />
           )}
@@ -864,35 +961,48 @@ function ProductCardItem({
               }}
             />
           ) : null}
-        </div>
+        </button>
       )}
       <div className="product-card-content flex flex-col gap-1 p-3">
         <div className="product-card-title text-[11px] font-semibold leading-4 text-base-primary">
           {product.name}
         </div>
-        <div className="product-card-price text-xs font-semibold leading-4 text-base-primary">
-          {product.price || "\u00a0"}
-        </div>
-        <div className="product-card-actions">
+        {displayPrice ? (
+          <div className="product-card-price text-xs font-semibold leading-4 text-base-primary">
+            {displayPrice}
+          </div>
+        ) : null}
+        <div
+          className={clsx(
+            "product-card-actions",
+            !showCartActions && "product-card-actions-single"
+          )}
+        >
+          {showCartActions ? (
+            <button
+              type="button"
+              className="product-card-cart-btn"
+              data-active={cartActive ? "true" : "false"}
+              aria-label={`Add ${product.name} to cart`}
+              onClick={event => {
+                void onAddToCart(event.currentTarget);
+              }}
+            >
+              <Icon name="cart" size="sm" />
+            </button>
+          ) : null}
           <button
             type="button"
-            className="product-card-cart-btn"
-            data-active={cartActive ? "true" : "false"}
-            aria-label={`Add ${product.name} to cart`}
-            onClick={event => {
-              void onAddToCart(event.currentTarget);
+            className={clsx(
+              "product-card-view-btn",
+              !showCartActions && "product-card-view-btn-full",
+              isExpanded && "product-card-view-btn-active"
+            )}
+            onClick={() => {
+              onViewDetails();
             }}
           >
-            <Icon name="cart" size="sm" />
-          </button>
-          <button
-            type="button"
-            className="product-card-view-btn"
-            onClick={event => {
-              void onViewDetails(event.currentTarget);
-            }}
-          >
-            View
+            {isExpanded ? "Viewing" : "View"}
           </button>
         </div>
       </div>
@@ -900,16 +1010,103 @@ function ProductCardItem({
   );
 }
 
+function extractImageFromDetailMessage(message: string): string | undefined {
+  return message
+    .match(/(?:Image(?:\s+URL)?|URL):\s*(https?:\/\/\S+)/i)?.[1]
+    ?.replace(/\s*\[blocked\]$/i, "")
+    .trim();
+}
+
+function isStandaloneProductDetailMessage(message: string): boolean {
+  const trimmed = message.trim();
+  if (
+    !trimmed ||
+    messageHasStructuredProducts(trimmed) ||
+    looksLikeMarkdownMessage(trimmed)
+  ) {
+    return false;
+  }
+
+  const detailText = extractAgentProductDetailText(trimmed);
+  if (!detailText) {
+    return false;
+  }
+
+  return (
+    /^(?:Title|Name|Price|Description|Here are)/im.test(trimmed) ||
+    detailText.length > 100
+  );
+}
+
+function resolveDetailProductForAgentReply(
+  entries: DisplayTranscriptEntry[],
+  entryIndex: number,
+  activeProduct: ProductCardData | null
+): ProductCardData | null {
+  for (let index = entryIndex - 1; index >= 0; index -= 1) {
+    const previous = entries[index];
+    if (previous.type !== "message") {
+      continue;
+    }
+
+    if (
+      previous.role === "user" &&
+      isProductDetailsRequestMessage(previous.message, previous.displayMessage)
+    ) {
+      const requestedName = getRequestedProductNameFromDetailMessage(
+        previous.message,
+        previous.displayMessage
+      );
+      if (!requestedName) {
+        return null;
+      }
+
+      if (
+        activeProduct &&
+        getProductDisplayName(activeProduct.name).toLowerCase() ===
+          getProductDisplayName(requestedName).toLowerCase()
+      ) {
+        return activeProduct;
+      }
+
+      return withProductDisplayName({
+        id: activeProduct?.id,
+        name: requestedName,
+        price: activeProduct?.price,
+        imageUrl: activeProduct?.imageUrl,
+        description: activeProduct?.description,
+        productUrl: activeProduct?.productUrl,
+        category: activeProduct?.category,
+        sizes: activeProduct?.sizes,
+      });
+    }
+
+    if (previous.role === "agent") {
+      return null;
+    }
+  }
+
+  return null;
+}
+
 function AgentMessageBubble({
   entry,
+  entryIndex,
+  entries,
 }: {
   entry: Extract<DisplayTranscriptEntry, { type: "message" }>;
+  entryIndex: number;
+  entries: DisplayTranscriptEntry[];
 }) {
   const { previewUrl } = useAvatarConfig();
   const linkConfig = useMarkdownLinkConfig();
   const config = useWidgetConfig();
+  const features = useBusinessModeFeatures();
   const cart = useProductCart();
-  const showProductCards = config.value.product_cards?.enabled !== false;
+  const { activeProduct } = useSheetContent();
+  const showProductCards = features.value.showProductCards;
+  const showCartActions = features.value.showCartActions;
+  const checkoutEnabled = features.value.checkoutEnabled;
   const showImages = config.value.product_cards?.show_images ?? true;
   const agentLabel =
     config.value.product_cards?.agent_label?.trim() || "Your AI Stylist";
@@ -939,12 +1136,77 @@ function AgentMessageBubble({
     ? frozenDisplayRef.current
     : resolved;
 
-  const checkoutMessage = display.message
-    ? formatCheckoutAgentMessage(display.message)
+  const isDetailAgentReply = isProductDetailAgentResponse(entry, entries, entryIndex);
+  const isCartAddConfirmationReply = isAgentReplyAfterAddToCart(
+    entry,
+    entryIndex,
+    entries
+  );
+  const detailProduct =
+    isDetailAgentReply && showProductCards
+      ? resolveDetailProductForAgentReply(
+          entries,
+          entryIndex,
+          activeProduct.value
+        )
+      : null;
+  const isDetailStructured = isProductDetailStructuredMessage(displayMessage);
+  const suppressProductCarousel =
+    isDetailAgentReply ||
+    (isDetailStructured && !display.showProducts);
+
+  const effectiveDisplay = suppressProductCarousel
+    ? {
+        ...display,
+        showProducts: false,
+        showProductSkeletons: false,
+        products: [],
+        message: isDetailAgentReply ? "" : display.message,
+        outroMessage: isDetailAgentReply ? "" : display.outroMessage,
+      }
+    : display;
+
+  const standaloneProductDetail =
+    showProductCards &&
+    !detailProduct &&
+    !isCartAddConfirmationReply &&
+    !effectiveDisplay.showProducts &&
+    !effectiveDisplay.showProductSkeletons &&
+    isStandaloneProductDetailMessage(displayMessage) &&
+    !isDetailAgentReply;
+  const parsedInlineDetail = standaloneProductDetail
+    ? parseAgentProductDetailContent(displayMessage, { name: "Product" })
+    : null;
+  const inlineDetailProduct = parsedInlineDetail
+    ? withProductDisplayName({
+        name: parsedInlineDetail.name,
+        price: parsedInlineDetail.price,
+        description: parsedInlineDetail.description,
+        imageUrl: parsedInlineDetail.imageUrl || extractImageFromDetailMessage(displayMessage),
+      })
+    : null;
+
+  const checkoutMessage = effectiveDisplay.message
+    ? formatCheckoutAgentMessage(effectiveDisplay.message)
     : { introText: "", checkoutUrl: null as string | null };
+  const detailReplyText =
+    isDetailAgentReply && !detailProduct
+      ? getProductDetailAgentReplyText(displayMessage)
+      : "";
   const messageText = checkoutMessage.checkoutUrl
     ? checkoutMessage.introText
-    : display.message;
+    : isDetailAgentReply
+      ? detailReplyText
+      : isCartAddConfirmationReply
+        ? ""
+        : effectiveDisplay.message;
+
+  const showDetailInline = Boolean(detailProduct);
+  const showAgentBubble =
+    Boolean(messageText) &&
+    !standaloneProductDetail &&
+    !showDetailInline &&
+    !isCartAddConfirmationReply;
 
   return (
     <div className="w-full min-w-0 max-w-full origin-top-left transition-[opacity,transform] duration-200 data-hidden:opacity-0 data-hidden:scale-75">
@@ -955,23 +1217,26 @@ function AgentMessageBubble({
           className="bg-base-border shrink-0 w-5 h-5 rounded-full"
         />
         <div className="flex min-w-0 max-w-full flex-1 flex-col items-start gap-1.5">
-          {display.showBreadcrumb && (
+          {effectiveDisplay.showBreadcrumb && !isDetailAgentReply && (
             <p className="product-breadcrumb mb-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-base-subtle">
               {agentLabel}
             </p>
           )}
-          {messageText && (
+          {showDetailInline && detailProduct ? (
+            <ProductExpandedCard product={detailProduct} />
+          ) : showAgentBubble ? (
             <WidgetStreamdown
               className={clsx(
                 "agent-message-bubble max-w-full px-3 py-2.5 rounded-bubble text-sm min-w-0 wrap-break-word break-all whitespace-pre-wrap bg-base-active text-base-primary",
-                display.showBreadcrumb && "bg-transparent px-0 py-0"
+                effectiveDisplay.showBreadcrumb && "bg-transparent px-0 py-0"
               )}
               linkConfig={linkConfig.value}
             >
               {messageText}
             </WidgetStreamdown>
-          )}
+          ) : null}
           {checkoutMessage.checkoutUrl &&
+            checkoutEnabled &&
             !isCheckoutFlowStep(cart.checkoutStep.value) && (
             <button
               type="button"
@@ -983,33 +1248,44 @@ function AgentMessageBubble({
               Proceed to checkout
             </button>
           )}
-          {display.showToolStatus && entry.toolStatus && (
-            <div className={clsx("self-start", display.message && "mt-2")}>
+          {effectiveDisplay.showToolStatus && entry.toolStatus && (
+            <div className={clsx("self-start", effectiveDisplay.message && "mt-2")}>
               <ToolCallMessage status={entry.toolStatus} />
             </div>
           )}
         </div>
       </div>
-      {(display.showProductSkeletons || display.showProducts) && (
+      {(effectiveDisplay.showProductSkeletons || effectiveDisplay.showProducts) && (
         <div className="product-card-carousel-bleed mt-2">
-          {display.showProductSkeletons ? (
+          {effectiveDisplay.showProductSkeletons ? (
             <ProductCardSkeletons
-              count={display.skeletonCount}
+              count={effectiveDisplay.skeletonCount}
               showImages={showImages}
             />
           ) : (
-            <ProductCards products={display.products} showImages={showImages} />
+            <ProductCards
+              products={effectiveDisplay.products}
+              showImages={showImages}
+              showCartActions={showCartActions}
+            />
           )}
         </div>
       )}
-      {display.outroMessage && (
+      {inlineDetailProduct && !isCartAddConfirmationReply ? (
+        <div className="product-card-carousel-bleed mt-2">
+          <ProductExpandedCard product={inlineDetailProduct} />
+        </div>
+      ) : null}
+      {effectiveDisplay.outroMessage &&
+        !isDetailAgentReply &&
+        !isCartAddConfirmationReply && (
         <div className="mt-2 flex gap-2.5 pr-4 min-w-0">
           <div className="w-5 shrink-0" aria-hidden="true" />
           <WidgetStreamdown
             className="max-w-[520px] text-sm min-w-0 wrap-break-word whitespace-pre-wrap bg-transparent px-0 py-0 text-base-primary"
             linkConfig={linkConfig.value}
           >
-            {display.outroMessage}
+            {effectiveDisplay.outroMessage}
           </WidgetStreamdown>
         </div>
       )}
@@ -1021,47 +1297,50 @@ function UserMessageBubble({
   entry,
 }: {
   entry: Extract<DisplayTranscriptEntry, { type: "message" }>;
+  entryIndex: number;
 }) {
   const { previewUrl } = useAvatarConfig();
   const fileInput = entry.fileInput;
 
   return (
-    <div
-      className={clsx(
-        "flex gap-2.5 transition-[opacity,transform] duration-200 data-hidden:opacity-0 data-hidden:scale-75",
-        entry.role === "user"
-          ? "justify-end pl-16 origin-top-right"
-          : "pr-16 origin-top-left"
-      )}
-    >
-      {entry.role === "agent" && (
-        <img
-          src={previewUrl}
-          alt="AI agent avatar"
-          className="bg-base-border shrink-0 w-5 h-5 rounded-full"
-        />
-      )}
-      <div className="flex flex-col items-end gap-1.5 min-w-0">
-        {fileInput && (
-          <FileAttachment
-            fileName={fileInput.fileName}
-            mimeType={fileInput.mimeType}
-            previewUrl={fileInput.previewUrl}
+    <div className="flex w-full min-w-0 flex-col items-end gap-2">
+      <div
+        className={clsx(
+          "flex gap-2.5 transition-[opacity,transform] duration-200 data-hidden:opacity-0 data-hidden:scale-75",
+          entry.role === "user"
+            ? "justify-end self-end pl-16 origin-top-right"
+            : "pr-16 origin-top-left"
+        )}
+      >
+        {entry.role === "agent" && (
+          <img
+            src={previewUrl}
+            alt="AI agent avatar"
+            className="bg-base-border shrink-0 w-5 h-5 rounded-full"
           />
         )}
-        {entry.message && (
-          <div
-            dir="auto"
-            className={clsx(
-              "px-3 py-2.5 rounded-bubble text-sm min-w-0 wrap-break-word whitespace-pre-wrap",
-              entry.role === "user"
-                ? "bg-accent text-accent-primary"
-                : "bg-base-active text-base-primary"
-            )}
-          >
-            {getUserMessageDisplayText(entry.message, entry.displayMessage)}
-          </div>
-        )}
+        <div className="flex flex-col items-end gap-1.5 min-w-0">
+          {fileInput && (
+            <FileAttachment
+              fileName={fileInput.fileName}
+              mimeType={fileInput.mimeType}
+              previewUrl={fileInput.previewUrl}
+            />
+          )}
+          {entry.message && (
+            <div
+              dir="auto"
+              className={clsx(
+                "px-3 py-2.5 rounded-bubble text-sm min-w-0 wrap-break-word whitespace-pre-wrap",
+                entry.role === "user"
+                  ? "bg-accent text-accent-primary"
+                  : "bg-base-active text-base-primary"
+              )}
+            >
+              {getUserMessageDisplayText(entry.message, entry.displayMessage)}
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1225,7 +1504,11 @@ function ToolCallMessage({ status }: { status: ToolCallStatusType }) {
   );
 }
 
-function getMessageComponent(entry: DisplayTranscriptEntry) {
+function getMessageComponent(
+  entry: DisplayTranscriptEntry,
+  entryIndex: number,
+  entries: DisplayTranscriptEntry[]
+) {
   if (entry.type === "disconnection") {
     return <DisconnectionMessage entry={entry} />;
   }
@@ -1236,18 +1519,22 @@ function getMessageComponent(entry: DisplayTranscriptEntry) {
     return <ErrorMessage entry={entry} />;
   }
   if (entry.role === "agent") {
-    return <AgentMessageBubble entry={entry} />;
+    return (
+      <AgentMessageBubble entry={entry} entryIndex={entryIndex} entries={entries} />
+    );
   }
-  return <UserMessageBubble entry={entry} />;
+  return <UserMessageBubble entry={entry} entryIndex={entryIndex} />;
 }
 
 export function TranscriptMessage({
   entry,
+  entryIndex,
+  entries,
   animateIn,
 }: TranscriptMessageProps) {
   return (
     <InOutTransition initial={!animateIn} active={true}>
-      {getMessageComponent(entry)}
+      {getMessageComponent(entry, entryIndex, entries)}
     </InOutTransition>
   );
 }

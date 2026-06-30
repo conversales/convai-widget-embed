@@ -25,9 +25,15 @@ import {
   hasCompleteAddress,
   saveAddressForEmail,
 } from "../utils/widget-address-storage";
-import { resolveCheckoutUrl, CHECKOUT_FLOW_STEPS } from "../utils/checkout";
-import { findCheckoutUrlInTranscript } from "../utils/agent-response";
-import { addVariantToThemeCart } from "../utils/shopify-theme-cart";
+import { resolveCheckoutUrl, CHECKOUT_FLOW_STEPS, DIRECT_CHECKOUT_STEPS } from "../utils/checkout";
+import { findCheckoutUrlInTranscript, inferShopOriginFromTranscript } from "../utils/agent-response";
+import { loadShopifyCartStorage, getStoredCartId } from "../services/cart-sync";
+import { addVariantToThemeCart, isShopifyStorefront } from "../utils/shopify-theme-cart";
+import {
+  buildShopifyCartCheckoutUrl,
+  inferShopOrigin,
+  normalizeCheckoutUrlInput,
+} from "../utils/shopify-checkout-url";
 
 type ProductCartSetup = ReturnType<typeof useProductCartSetup>;
 
@@ -292,8 +298,14 @@ function useProductCartSetup(sessionScope: string) {
     isInCart(productName);
 
   const startCheckout = () => {
-    checkoutStep.value = "email";
-    beginCheckoutUrlRequest();
+    requestDirectCheckout();
+  };
+
+  const requestDirectCheckout = () => {
+    checkoutStep.value = "complete";
+    paymentStatus.value = "processing";
+    persistCart();
+    return true;
   };
 
   const continueCheckout = () => {
@@ -371,30 +383,82 @@ function useProductCartSetup(sessionScope: string) {
 
   const beginAwaitingCheckout = () => beginCheckoutUrlRequest();
 
-  const applyCheckoutUrlFromResponse = (responseUrl: string | null | undefined) => {
-    const resolved = getResolvedCheckoutUrl(responseUrl ?? undefined);
+  const applyCheckoutUrlFromResponse = (
+    responseUrl: string | null | undefined,
+    entries?: Array<{ type: string; role?: string; message?: string }>
+  ) => {
+    const shouldAutoOpen = paymentStatus.peek() === "processing";
+    const resolved = getResolvedCheckoutUrl(responseUrl ?? undefined, entries);
     if (!resolved) {
       return false;
     }
 
     checkoutUrl.value = resolved;
     paymentStatus.value = "ready";
+    checkoutStep.value = "complete";
     persistCart();
+
+    if (shouldAutoOpen) {
+      window.open(resolved, "_blank", "noopener,noreferrer");
+    }
+
     return true;
   };
 
-  const getResolvedCheckoutUrl = (responseUrl?: string) => {
-    const source = responseUrl ?? checkoutUrl.peek();
-    if (!source) {
-      return null;
-    }
-
-    return resolveCheckoutUrl(source, {
+  const getResolvedCheckoutUrl = (
+    responseUrl?: string,
+    entries?: Array<{ type: string; role?: string; message?: string }>
+  ) => {
+    const cartPayload = {
       items: items.peek(),
       email: email.peek(),
       discountCode: discountCode.peek(),
       deliveryAddress: deliveryAddress.peek(),
-    });
+    };
+
+    const shopifyStorage = loadShopifyCartStorage(sessionScope);
+    const cartId = getStoredCartId(sessionScope) ?? shopifyStorage?.cartId ?? null;
+    const productOrigins = items
+      .peek()
+      .map(item => item.product.productUrl)
+      .filter((url): url is string => Boolean(url));
+
+    const shopOrigin = inferShopOrigin(
+      responseUrl,
+      checkoutUrl.peek(),
+      shopifyStorage?.checkoutUrl,
+      entries ? inferShopOriginFromTranscript(entries) : null,
+      ...productOrigins
+    );
+
+    const candidates = [
+      responseUrl,
+      checkoutUrl.peek(),
+      shopifyStorage?.checkoutUrl,
+      entries ? findCheckoutUrlInTranscript(entries) : null,
+      cartId && shopOrigin ? buildShopifyCartCheckoutUrl(cartId, shopOrigin) : null,
+      isShopifyStorefront() && items.peek().length > 0
+        ? `${window.location.origin}/checkout`
+        : null,
+    ];
+
+    for (const candidate of candidates) {
+      if (!candidate) {
+        continue;
+      }
+
+      const normalized = normalizeCheckoutUrlInput(candidate, shopOrigin);
+      if (!normalized) {
+        continue;
+      }
+
+      const resolved = resolveCheckoutUrl(normalized, cartPayload);
+      if (resolved) {
+        return resolved;
+      }
+    }
+
+    return null;
   };
 
   const openCheckoutInNewTab = (responseUrl?: string) => {
@@ -427,23 +491,27 @@ function useProductCartSetup(sessionScope: string) {
   const syncCheckoutFromTranscript = (
     entries: Array<{ type: string; role?: string; message?: string }>
   ) => {
-    if (!CHECKOUT_FLOW_STEPS.includes(checkoutStep.peek())) {
-      return false;
-    }
-
+    const step = checkoutStep.peek();
     if (
-      paymentStatus.peek() !== "processing" &&
-      paymentStatus.peek() !== "idle"
+      !DIRECT_CHECKOUT_STEPS.includes(step) &&
+      !CHECKOUT_FLOW_STEPS.includes(step)
     ) {
       return false;
     }
 
-    const responseUrl = findCheckoutUrlInTranscript(entries);
-    if (!responseUrl) {
+    if (paymentStatus.peek() === "ready" && checkoutUrl.peek()) {
       return false;
     }
 
-    return applyCheckoutUrlFromResponse(responseUrl);
+    const shopifyStorage = loadShopifyCartStorage(sessionScope);
+    const responseUrl =
+      findCheckoutUrlInTranscript(entries) ?? shopifyStorage?.checkoutUrl ?? null;
+
+    if (!responseUrl && !getStoredCartId(sessionScope)) {
+      return false;
+    }
+
+    return applyCheckoutUrlFromResponse(responseUrl, entries);
   };
 
   const exitCheckoutFlow = () => {
@@ -510,6 +578,7 @@ function useProductCartSetup(sessionScope: string) {
     isInCart,
     isCartActive,
     startCheckout,
+    requestDirectCheckout,
     continueCheckout,
     cancelCheckout,
     editCheckoutStep,
@@ -537,6 +606,9 @@ function CheckoutFlowLifecycle({ cart }: { cart: ProductCartSetup }) {
 
   useSignalEffect(() => {
     if (isDisconnected.value) {
+      if (cart.paymentStatus.value === "ready" && cart.checkoutUrl.value) {
+        return;
+      }
       cart.exitCheckoutFlow();
       return;
     }
@@ -544,6 +616,9 @@ function CheckoutFlowLifecycle({ cart }: { cart: ProductCartSetup }) {
     const entries = transcript.value;
     const last = entries[entries.length - 1];
     if (last?.type === "disconnection" || last?.type === "error") {
+      if (cart.paymentStatus.value === "ready" && cart.checkoutUrl.value) {
+        return;
+      }
       cart.exitCheckoutFlow();
       return;
     }

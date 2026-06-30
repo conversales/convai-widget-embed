@@ -129,7 +129,12 @@ export function SheetHistory() {
         <div className="sheet-history-detail flex min-h-0 grow flex-col gap-6 overflow-y-auto px-4 pt-5 pb-4">
           {displayTranscript.map((entry, index) => (
             <Fragment key={`${selectedChat.id}-${index}-${entry.conversationIndex}`}>
-              <TranscriptMessage entry={entry} animateIn={false} />
+              <TranscriptMessage
+                entry={entry}
+                entryIndex={index}
+                entries={displayTranscript}
+                animateIn={false}
+              />
             </Fragment>
           ))}
         </div>

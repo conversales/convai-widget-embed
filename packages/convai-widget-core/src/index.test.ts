@@ -387,7 +387,7 @@ describe("conversales-convai", () => {
 
       // Displayed error
       await expect
-        .element(page.getByText("An error occurred", { exact: true }))
+        .element(page.getByText("An error occurred"))
         .toBeInTheDocument();
       await expect.element(page.getByText("Test reason")).toBeInTheDocument();
       await expect.element(page.getByText("ID")).toBeInTheDocument();
@@ -515,6 +515,7 @@ describe("conversales-convai", () => {
     beforeEach(() => {
       setupWebComponent({
         "agent-id": "markdown",
+        "business-mode": "normal",
         variant: "compact",
         "default-expanded": "true",
       });
@@ -904,7 +905,7 @@ describe("conversales-convai", () => {
       await userEvent.keyboard("{Enter}");
 
       await expect
-        .element(page.getByText("An error occurred", { exact: true }))
+        .element(page.getByText("An error occurred"))
         .toBeInTheDocument();
       await expect.element(page.getByText("ID")).toBeInTheDocument();
     });

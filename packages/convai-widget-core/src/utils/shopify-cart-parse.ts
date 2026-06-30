@@ -237,6 +237,8 @@ export function parseMcpResultBlocks(
 
 const AGENT_CART_ID_PATTERN = /Cart\s*ID:\s*(gid:\/\/shopify\/Cart\/[^\s\n]+)/i;
 const AGENT_CHECKOUT_URL_PATTERN = /Checkout\s*URL:\s*(https?:\/\/[^\s\n]+)/i;
+const AGENT_CHECKOUT_URL_NEXT_LINE_PATTERN =
+  /Checkout\s*URL:\s*(?:\r?\n|\s+)(https?:\/\/[^\s\n]+)/i;
 const AGENT_TOTAL_QUANTITY_PATTERN = /Total\s*Quantity:\s*(\d+)/i;
 
 /**
@@ -251,7 +253,9 @@ export function parseCartFromAgentText(
   }
 
   const cartId = cartIdMatch[1].trim();
-  const checkoutUrlMatch = message.match(AGENT_CHECKOUT_URL_PATTERN);
+  const checkoutUrlMatch =
+    message.match(AGENT_CHECKOUT_URL_PATTERN) ??
+    message.match(AGENT_CHECKOUT_URL_NEXT_LINE_PATTERN);
   const checkoutUrl = checkoutUrlMatch?.[1]?.trim();
   const qtyMatch = message.match(AGENT_TOTAL_QUANTITY_PATTERN);
   const lineItemCount = qtyMatch ? parseInt(qtyMatch[1], 10) : 1;

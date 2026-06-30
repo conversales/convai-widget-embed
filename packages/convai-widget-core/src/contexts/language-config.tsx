@@ -53,6 +53,14 @@ function getBrowserLanguageCandidates(): Language[] {
   }
 }
 
+function getLanguageInfo(code: Language | undefined): LanguageInfo {
+  if (code && isValidLanguage(code)) {
+    return Languages[code];
+  }
+
+  return Languages.en;
+}
+
 function resolveInitialLanguage({
   languageAttribute,
   supported,
@@ -60,9 +68,12 @@ function resolveInitialLanguage({
 }: {
   languageAttribute: Language | undefined;
   supported: Language[];
-  defaultLanguage: Language;
+  defaultLanguage: Language | undefined;
 }): Language {
-  const validSet = new Set<Language>([...supported, defaultLanguage]);
+  const resolvedDefault = isValidLanguage(defaultLanguage)
+    ? defaultLanguage
+    : "en";
+  const validSet = new Set<Language>([...supported, resolvedDefault]);
   const preferences: (Language | undefined)[] = [
     languageAttribute,
     maybeGetLastUsedLanguage(),
@@ -73,7 +84,7 @@ function resolveInitialLanguage({
     if (lang && validSet.has(lang)) return lang;
   }
 
-  return defaultLanguage;
+  return resolvedDefault;
 }
 
 function writeLastUsedLanguage(language: Language): void {
@@ -117,14 +128,20 @@ export function LanguageConfigProvider({
 
   const value = useMemo(
     () => ({
-      language: computed(() =>
-        isValidLanguage(overrideLanguageAttribute.value)
-          ? Languages[overrideLanguageAttribute.value]
-          : isValidLanguage(languageCode.value) &&
-              supportedOverrides.value.includes(languageCode.value)
-            ? Languages[languageCode.value]
-            : Languages[widgetConfig.value.language]
-      ),
+      language: computed(() => {
+        if (isValidLanguage(overrideLanguageAttribute.value)) {
+          return getLanguageInfo(overrideLanguageAttribute.value);
+        }
+
+        if (
+          isValidLanguage(languageCode.value) &&
+          supportedOverrides.value.includes(languageCode.value)
+        ) {
+          return getLanguageInfo(languageCode.value);
+        }
+
+        return getLanguageInfo(widgetConfig.value.language);
+      }),
       setLanguage: (value: Language) => {
         languageCode.value = value;
         writeLastUsedLanguage(value);

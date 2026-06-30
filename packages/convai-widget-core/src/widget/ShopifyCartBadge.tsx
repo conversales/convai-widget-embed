@@ -1,6 +1,7 @@
 import { useShopifyCart } from "../contexts/shopify-cart";
+import { useCartCommerceEnabled } from "../contexts/widget-config";
 
-export function ShopifyCartBadge() {
+function ShopifyCartBadgeInner() {
   const shopifyCart = useShopifyCart();
   const count = shopifyCart.lineItemCount.value;
 
@@ -15,4 +16,14 @@ export function ShopifyCartBadge() {
       {label}
     </span>
   );
+}
+
+export function ShopifyCartBadge() {
+  const cartEnabled = useCartCommerceEnabled();
+
+  if (!cartEnabled.value) {
+    return null;
+  }
+
+  return <ShopifyCartBadgeInner />;
 }

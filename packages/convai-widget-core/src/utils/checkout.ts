@@ -17,6 +17,12 @@ export const CHECKOUT_FLOW_STEPS: CheckoutStep[] = [
   "complete",
 ];
 
+export const DIRECT_CHECKOUT_STEPS: CheckoutStep[] = [
+  "cart_pending",
+  "confirmation",
+  "complete",
+];
+
 export function isCheckoutFlowStep(step: CheckoutStep): boolean {
   return CHECKOUT_FLOW_STEPS.includes(step);
 }
@@ -69,7 +75,7 @@ function findLastAddToCartUserIndex(entries: DisplayTranscriptEntry[]): number {
     if (
       candidate.type === "message" &&
       candidate.role === "user" &&
-      isAddToCartUserMessage(candidate.message)
+      isAddToCartUserMessage(candidate.message, candidate.displayMessage)
     ) {
       lastAddIndex = index;
     }
@@ -78,16 +84,11 @@ function findLastAddToCartUserIndex(entries: DisplayTranscriptEntry[]): number {
   return lastAddIndex;
 }
 
-export function shouldHideCartConfirmationAgentEntry(
+export function isAgentReplyAfterAddToCart(
   entry: DisplayTranscriptEntry,
   entryIndex: number,
-  entries: DisplayTranscriptEntry[],
-  checkoutStep: CheckoutStep
+  entries: DisplayTranscriptEntry[]
 ): boolean {
-  if (checkoutStep !== "confirmation" && checkoutStep !== "cart_pending") {
-    return false;
-  }
-
   if (entry.type !== "message" || entry.role !== "agent" || entryIndex < 0) {
     return false;
   }
@@ -105,6 +106,19 @@ export function shouldHideCartConfirmationAgentEntry(
   }
 
   return true;
+}
+
+export function shouldHideCartConfirmationAgentEntry(
+  entry: DisplayTranscriptEntry,
+  entryIndex: number,
+  entries: DisplayTranscriptEntry[],
+  checkoutStep: CheckoutStep
+): boolean {
+  if (checkoutStep !== "confirmation" && checkoutStep !== "cart_pending") {
+    return false;
+  }
+
+  return isAgentReplyAfterAddToCart(entry, entryIndex, entries);
 }
 
 function isShopifyUrl(url: URL): boolean {

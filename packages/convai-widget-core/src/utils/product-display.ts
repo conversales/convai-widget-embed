@@ -53,6 +53,27 @@ export function withProductDisplayName(
   };
 }
 
+export function buildProductDetailsRequestMessages(product: ProductCardData): {
+  displayText: string;
+  backendText: string;
+} {
+  const displayName = getProductDisplayName(product.name);
+  const displayText = `I need more details about ${displayName}`;
+  const backendText = product.id
+    ? `${displayText}. Product ID: ${product.id}`
+    : displayText;
+
+  return { displayText, backendText };
+}
+
+export function isProductDetailsRequestMessage(
+  message: string,
+  displayMessage?: string
+): boolean {
+  const text = getUserMessageDisplayText(message, displayMessage);
+  return /^i need more details about /i.test(text);
+}
+
 export function buildProductViewMessages(product: ProductCardData): {
   displayText: string;
   backendText: string;
@@ -80,14 +101,20 @@ export function appendCartIdToBackendText(
 
 export function buildAddToCartMessages(
   product: ProductCardData,
-  options?: { cartId?: string | null; size?: string }
+  options?: { cartId?: string | null; size?: string; color?: string }
 ): {
   displayText: string;
   backendText: string;
 } {
   const displayName = getProductDisplayName(product.name);
-  const displayText = options?.size
-    ? `Add ${displayName} (size ${options.size}) to cart`
+  const variantLabel = options?.color ?? options?.size;
+  const variantPrefix = options?.color
+    ? `(${options.color})`
+    : options?.size
+      ? `(size ${options.size})`
+      : "";
+  const displayText = variantLabel
+    ? `Add ${displayName} ${variantPrefix} to cart`
     : `Add ${displayName} to cart`;
   const backendWithProductId = product.id
     ? `${displayText}. Product ID: ${product.id}`
@@ -100,12 +127,12 @@ export function buildAddToCartMessages(
   return { displayText, backendText };
 }
 
-export function isAddToCartUserMessage(message: string): boolean {
-  const trimmed = message.trim();
-  return (
-    /^add(?:ed)? .+ to cart$/i.test(trimmed) ||
-    /^add(?:ed)? .+ \(size .+\) to cart$/i.test(trimmed)
-  );
+export function isAddToCartUserMessage(
+  message: string,
+  displayMessage?: string
+): boolean {
+  const text = getUserMessageDisplayText(message, displayMessage).trim();
+  return /^add(?:ed)? .+ to cart$/i.test(text);
 }
 
 export function getUserMessageDisplayText(

@@ -4,7 +4,7 @@ import { DisplayTranscriptEntry } from "../utils/display-transcript";
 import { TranscriptMessage } from "./TranscriptMessage";
 import { useStickToBottom } from "../utils/useStickToBottom";
 import { LeadCaptureForm, useLeadCaptureRequired } from "./LeadCaptureForm";
-import { useLeadsCaptureEnabled } from "../contexts/widget-config";
+import { useLeadsCaptureEnabled, useCheckoutCommerceEnabled } from "../contexts/widget-config";
 import { ProductCartTranscriptCards } from "./ProductCartFlow";
 import { useProductCart } from "../contexts/product-cart";
 import { shouldHideCheckoutTranscriptEntry } from "../utils/checkout";
@@ -17,6 +17,7 @@ interface TranscriptProps {
 export function Transcript({ scrollPinned, transcript }: TranscriptProps) {
   const leadsCaptureEnabled = useLeadsCaptureEnabled();
   const leadCaptureRequired = useLeadCaptureRequired();
+  const checkoutEnabled = useCheckoutCommerceEnabled();
   const cart = useProductCart();
   const {
     scrollContainer,
@@ -68,6 +69,8 @@ export function Transcript({ scrollPinned, transcript }: TranscriptProps) {
             <Fragment key={`${index}-${entry.conversationIndex}`}>
               <TranscriptMessage
                 entry={entry}
+                entryIndex={index}
+                entries={transcript.value}
                 animateIn={!firstRender.current}
               />
               {leadsCaptureEnabled.value && leadCaptureRequired.value && isAgentMessage && (
@@ -76,7 +79,7 @@ export function Transcript({ scrollPinned, transcript }: TranscriptProps) {
             </Fragment>
           );
         })}
-        <ProductCartTranscriptCards />
+        {checkoutEnabled.value && <ProductCartTranscriptCards />}
       </div>
     </div>
   );

@@ -67,7 +67,7 @@ function hasAgentResponseAfterAddToCart(entries: TranscriptEntry[]): boolean {
     if (
       entry.type === "message" &&
       entry.role === "user" &&
-      isAddToCartUserMessage(entry.message)
+      isAddToCartUserMessage(entry.message, entry.displayMessage)
     ) {
       lastAddIndex = index;
     }
@@ -109,6 +109,7 @@ function CartConfirmationWatcher() {
     }
 
     if (hasAgentResponseAfterAddToCart(transcript.value)) {
+      cart.syncCheckoutFromTranscript(transcript.peek());
       cart.revealCartConfirmation();
     }
   });
@@ -250,6 +251,10 @@ function CartConfirmationCard() {
   const cart = useProductCart();
   const { sendUserMessage, isDisconnected, startSession } = useConversation();
   const latestItem = cart.latestItem.value;
+  const checkoutReady =
+    cart.paymentStatus.value === "ready" && !!cart.checkoutUrl.value;
+  const checkoutPending = cart.paymentStatus.value === "processing";
+
   if (!latestItem) {
     return null;
   }
@@ -265,16 +270,29 @@ function CartConfirmationCard() {
         </span>
       </div>
       <CartItemSummary item={latestItem} />
+      {checkoutReady ? (
+        <p className="product-cart-complete-banner">
+          Your checkout link is ready.
+        </p>
+      ) : null}
       <button
         type="button"
-        className="product-cart-flow-btn product-cart-flow-btn-outline product-cart-flow-btn-wide"
+        className={clsx(
+          "product-cart-flow-btn product-cart-flow-btn-wide",
+          checkoutReady
+            ? "product-cart-checkout-link"
+            : "product-cart-flow-btn-outline"
+        )}
+        disabled={checkoutPending}
         onClick={event => {
-          if (cart.checkoutUrl.value) {
-            cart.openCheckoutInNewTab();
+          if (cart.openCheckoutInNewTab()) {
             return;
           }
-          cart.startCheckout();
+          cart.requestDirectCheckout();
           if (isDisconnected.value) {
+            void startSession(event.currentTarget, "continue payment", {
+              silent: true,
+            });
             return;
           }
           requestCheckoutFromAgent(
@@ -285,7 +303,11 @@ function CartConfirmationCard() {
           );
         }}
       >
-        Checkout
+        {checkoutPending
+          ? "Preparing checkout..."
+          : checkoutReady
+            ? "Proceed to checkout"
+            : "Proceed to checkout"}
       </button>
     </div>
   );
@@ -613,27 +635,32 @@ function CheckoutReviewStep() {
 function CheckoutCompleteBanner() {
   const cart = useProductCart();
   const paymentStatus = cart.paymentStatus.value;
-  const checkoutUrl = cart.checkoutUrl.value;
+  const checkoutStep = cart.checkoutStep.value;
 
   const bannerText =
     paymentStatus === "ready"
       ? "Your checkout link is ready."
       : "Preparing your checkout link...";
 
+  const canOpenCheckout =
+    checkoutStep === "complete" &&
+    (paymentStatus === "ready" || paymentStatus === "processing");
+
   return (
     <div className="product-cart-complete-panel">
       <div className="product-cart-complete-banner">{bannerText}</div>
-      {paymentStatus === "ready" && checkoutUrl && (
+      {canOpenCheckout ? (
         <button
           type="button"
           className="product-cart-checkout-link"
+          disabled={paymentStatus === "processing"}
           onClick={() => {
             cart.openCheckoutInNewTab();
           }}
         >
           Proceed to checkout
         </button>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -646,48 +673,17 @@ export function ProductCartTranscriptCards() {
     return null;
   }
 
-  const showEmailVerified =
-    STEPS_AFTER_EMAIL.includes(step) && step !== "complete";
-  const showAddressVerified =
-    STEPS_AFTER_ADDRESS.includes(step) && step !== "complete";
-  const addressSummary = formatDeliveryAddress(cart.deliveryAddress.value);
+  const showDirectCheckout =
+    step === "confirmation" ||
+    step === "complete" ||
+    step === "cart_pending";
 
   return (
     <div className="product-cart-chat-flow flex flex-col">
       <CheckoutPaymentWatcher />
       <CartConfirmationWatcher />
       {step === "add_to_cart" && <AddToCartChatCard />}
-      {step === "confirmation" && <CartConfirmationCard />}
-
-      {showEmailVerified && (
-        <VerifiedRow
-          label={cart.email.value.trim()}
-          onEdit={() => {
-            cart.editCheckoutStep("email");
-          }}
-        />
-      )}
-
-      {step === "email" && <CheckoutEmailStep />}
-
-      {showAddressVerified && (
-        <VerifiedRow
-          label={addressSummary}
-          onEdit={() => {
-            cart.editCheckoutStep("address");
-          }}
-        />
-      )}
-
-      {step === "address" && cart.showSavedAddressStep.value && (
-        <CheckoutSavedAddressStep />
-      )}
-      {step === "address" && !cart.showSavedAddressStep.value && (
-        <CheckoutAddressStep />
-      )}
-      {step === "discount" && <CheckoutDiscountStep />}
-      {step === "review" && <CheckoutReviewStep />}
-      {step === "complete" && <CheckoutCompleteBanner />}
+      {showDirectCheckout && <CartConfirmationCard />}
     </div>
   );
 }

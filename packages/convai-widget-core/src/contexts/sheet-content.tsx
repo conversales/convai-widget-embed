@@ -1,8 +1,9 @@
 import { type Signal, useSignal } from "@preact/signals";
 import type { ComponentChildren } from "preact";
 import { createContext } from "preact/compat";
-import { useMemo } from "preact/hooks";
+import { useCallback, useMemo } from "preact/hooks";
 
+import type { ProductCardData } from "../types/product-card";
 import { useContextSafely } from "../utils/useContextSafely";
 
 type SheetContentType = "transcript" | "feedback" | "history";
@@ -16,6 +17,9 @@ const SheetContentContext = createContext<{
   currentContent: Signal<SheetContentType>;
   currentConfig: PageConfig;
   historyDetailOpen: Signal<boolean>;
+  activeProduct: Signal<ProductCardData | null>;
+  openProductDetail: (product: ProductCardData) => void;
+  closeProductDetail: () => void;
 } | null>(null);
 
 export function SheetContentProvider({
@@ -27,6 +31,15 @@ export function SheetContentProvider({
 }) {
   const currentContent = useSignal<SheetContentType>(defaultContent);
   const historyDetailOpen = useSignal(false);
+  const activeProduct = useSignal<ProductCardData | null>(null);
+
+  const closeProductDetail = useCallback(() => {
+    activeProduct.value = null;
+  }, []);
+
+  const openProductDetail = useCallback((product: ProductCardData) => {
+    activeProduct.value = product;
+  }, []);
 
   const value = useMemo(() => {
     const contentType = currentContent.value;
@@ -54,8 +67,20 @@ export function SheetContentProvider({
               showHeaderBack: false,
             };
 
-    return { currentContent, currentConfig, historyDetailOpen };
-  }, [currentContent.value, historyDetailOpen.value]);
+    return {
+      currentContent,
+      currentConfig,
+      historyDetailOpen,
+      activeProduct,
+      openProductDetail,
+      closeProductDetail,
+    };
+  }, [
+    currentContent.value,
+    historyDetailOpen.value,
+    activeProduct.value,
+    closeProductDetail,
+  ]);
 
   return (
     <SheetContentContext.Provider value={value}>

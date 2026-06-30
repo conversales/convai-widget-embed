@@ -70,4 +70,15 @@ Total Quantity: 2`;
     );
     expect(parseCartFromAgentText(message)?.lineItemCount).toBe(2);
   });
+
+  it("parses checkout url on the next line", () => {
+    const message = `Cart ID: ${SAMPLE_CART_GID}
+Checkout URL:
+https://example.myshopify.com/cart/c/test?key=abc
+Total Quantity: 1`;
+
+    expect(parseCartFromAgentText(message)?.checkoutUrl).toBe(
+      "https://example.myshopify.com/cart/c/test?key=abc"
+    );
+  });
 });

@@ -1,4 +1,9 @@
 import { Language } from "@elevenlabs/client";
+import type { BusinessMode } from "../utils/business-mode";
+import { BusinessModes } from "../utils/business-mode";
+
+export type { BusinessMode };
+export { BusinessModes };
 
 export const Variants = ["tiny", "compact", "full"] as const;
 export type Variant = (typeof Variants)[number];
@@ -35,6 +40,7 @@ export interface AllowlistItem {
 export interface WidgetConfig {
   variant: Variant;
   placement: Placement;
+  business_mode?: BusinessMode;
   product_cards?: {
     enabled?: boolean;
     show_images?: boolean;

@@ -148,15 +148,18 @@ export function ConversationProvider({ children }: ConversationProviderProps) {
   const accountId = useAccountId();
   const userId = useWidgetUserId();
   const sessionScope = useWidgetStorageScope();
+  const widgetConfig = useWidgetConfig();
   const value = useConversationSetup(sessionScope);
   const restoredScopesRef = useRef(new Set<string>());
 
   useEffect(() => {
     const scope = sessionScope.value;
-    if (restoredScopesRef.current.has(scope)) {
+    const businessMode = widgetConfig.value.business_mode ?? "d2c";
+    const restoreKey = `${scope}:${businessMode}`;
+    if (restoredScopesRef.current.has(restoreKey)) {
       return;
     }
-    restoredScopesRef.current.add(scope);
+    restoredScopesRef.current.add(restoreKey);
 
     const restoreFromPickup = async () => {
       let currentAgentId = agentId.value?.trim();
@@ -204,6 +207,11 @@ export function ConversationProvider({ children }: ConversationProviderProps) {
         archiveChatToHistory(scope, saved.transcript, saved.lastId);
       }
       clearWidgetSession(scope);
+      value.transcript.value = [];
+      value.conversationIndex.value = 0;
+      value.lastId.value = null;
+      value.hasRestoredSession.value = false;
+      return;
     }
 
     value.transcript.value = saved.transcript;
@@ -217,6 +225,7 @@ export function ConversationProvider({ children }: ConversationProviderProps) {
     signedUrl.value,
     accountId.value,
     userId.value,
+    widgetConfig.value.business_mode,
   ]);
 
   useSignalEffect(() => {

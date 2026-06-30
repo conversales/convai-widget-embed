@@ -189,7 +189,44 @@ const codeBlock = true;
     default_expanded: true,
     first_message: "",
   },
+  real_estate_listings: {
+    ...BASIC_CONFIG,
+    text_only: true,
+    transcript_enabled: true,
+    text_input_enabled: true,
+    terms_html: undefined,
+    default_expanded: true,
+    first_message: "",
+  },
+  d2c_listings: {
+    ...BASIC_CONFIG,
+    text_only: true,
+    transcript_enabled: true,
+    text_input_enabled: true,
+    terms_html: undefined,
+    default_expanded: true,
+    first_message: "",
+  },
 } as const satisfies Record<string, WidgetConfig>;
+
+const REAL_ESTATE_LISTINGS = `Here are some properties:
+
+Title: Sunset Villa
+Price: $450,000
+Availability: In Stock
+Image URL: https://example.com/villa.jpg
+
+Title: Palm Heights
+Price: ₹85 Lakhs
+Availability: In Stock
+Image URL: https://example.com/palm.jpg`;
+
+const D2C_LISTINGS = `Here are some bags:
+
+Title: Canvas Lunch Bag
+Price: Rs. 32.00
+Availability: In Stock
+Image URL: https://example.com/bag.jpg`;
 
 function isValidAgentId(agentId: string): agentId is keyof typeof AGENTS {
   return agentId in AGENTS;
@@ -223,6 +260,22 @@ export const Worker = setupWorker(
       data: {
         found: false,
         transcript: [],
+      },
+    });
+  }),
+  http.get("https://api.conversales.in/api/v1/widget/productDetails", () => {
+    return HttpResponse.json({
+      data: {
+        product: null,
+        recommendations: [],
+      },
+    });
+  }),
+  http.get("http://localhost:8082/api/v1/widget/productDetails", () => {
+    return HttpResponse.json({
+      data: {
+        product: null,
+        recommendations: [],
       },
     });
   }),
@@ -287,7 +340,9 @@ export const Worker = setupWorker(
         agentId !== "end_call_test" &&
         agentId !== "tool_call" &&
         agentId !== "file_upload" &&
-        agentId !== "no_file_upload"
+        agentId !== "no_file_upload" &&
+        agentId !== "real_estate_listings" &&
+        agentId !== "d2c_listings"
       ) {
         client.send(
           JSON.stringify({
@@ -432,6 +487,37 @@ export const Worker = setupWorker(
                 agent_response: "Tool completed successfully",
                 event_id: 2,
               },
+            })
+          );
+        });
+      }
+      if (agentId === "real_estate_listings" || agentId === "d2c_listings") {
+        const listingMessage =
+          agentId === "real_estate_listings"
+            ? REAL_ESTATE_LISTINGS
+            : D2C_LISTINGS;
+
+        client.addEventListener("message", async () => {
+          client.send(
+            JSON.stringify({
+              type: "agent_chat_response_part",
+              text_response_part: { text: "", type: "start", event_id: 2 },
+            })
+          );
+          await new Promise(resolve => setTimeout(resolve, 0));
+          client.send(
+            JSON.stringify({
+              type: "agent_response",
+              agent_response_event: {
+                agent_response: listingMessage,
+                event_id: 2,
+              },
+            })
+          );
+          client.send(
+            JSON.stringify({
+              type: "agent_chat_response_part",
+              text_response_part: { text: "", type: "stop", event_id: 2 },
             })
           );
         });

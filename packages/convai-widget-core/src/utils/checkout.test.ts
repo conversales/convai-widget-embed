@@ -80,4 +80,24 @@ describe("shouldHideCheckoutTranscriptEntry", () => {
       shouldHideCheckoutTranscriptEntry(entries[1], "cart_pending", entries, 1)
     ).toBe(true);
   });
+
+  it("hides cart confirmation agent replies when add-to-cart includes product id", () => {
+    const entries = [
+      {
+        ...msg(
+          "user",
+          "Add Hudderton Backpack (Khaki) to cart. Product ID: 99. Cart ID: gid://shopify/Cart/abc"
+        ),
+        displayMessage: "Add Hudderton Backpack (Khaki) to cart",
+      },
+      msg(
+        "agent",
+        "Added to cart.\n- Hudderton Backpack (Khaki): 2\n- Canvas Lunch Bag (Khaki): 1"
+      ),
+    ];
+
+    expect(
+      shouldHideCheckoutTranscriptEntry(entries[1], "confirmation", entries, 1)
+    ).toBe(true);
+  });
 });

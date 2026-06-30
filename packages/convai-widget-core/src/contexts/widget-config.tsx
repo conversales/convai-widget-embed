@@ -20,6 +20,11 @@ import { useServerLocation } from "./server-location";
 
 import { useContextSafely } from "../utils/useContextSafely";
 import { parseBoolAttribute } from "../types/attributes";
+import {
+  applyBusinessModeToConfig,
+  parseBusinessMode,
+  resolveBusinessModeFeatures,
+} from "../utils/business-mode";
 import { useLanguageConfig } from "./language-config";
 import { useConversation } from "./conversation";
 import { fetchWidgetAvailability } from "../utils/widget-api";
@@ -38,6 +43,37 @@ const DEFAULT_WIDGET_AVAILABILITY = {
   message: null,
 } satisfies WidgetAvailability;
 const widgetAvailabilityCache = new Map<string, WidgetAvailability>();
+
+const FALLBACK_WIDGET_CONFIG = {
+  variant: "compact",
+  placement: "bottom-right",
+  avatar: {
+    type: "orb",
+    color_1: "#3656d4",
+    color_2: "#ffffff",
+  },
+  feedback_mode: "none",
+  language: "en",
+  mic_muting_enabled: true,
+  transcript_enabled: true,
+  text_input_enabled: true,
+  default_expanded: false,
+  always_expanded: false,
+  dismissible: false,
+  text_contents: {},
+  language_presets: {},
+  disable_banner: false,
+  text_only: false,
+  supports_text_only: true,
+} satisfies WidgetConfig;
+
+function mergeWithFallbackConfig(config: WidgetConfig | null): WidgetConfig | null {
+  if (!config) {
+    return null;
+  }
+
+  return mergeConfigValues(FALLBACK_WIDGET_CONFIG, config);
+}
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
@@ -115,7 +151,7 @@ export function WidgetConfigProvider({ children }: WidgetConfigProviderProps) {
     }
 
     if (!currentAgentId) {
-      fetchedConfig.value = parsedOverrideConfig;
+      fetchedConfig.value = mergeWithFallbackConfig(parsedOverrideConfig);
       return;
     }
 
@@ -138,7 +174,7 @@ export function WidgetConfigProvider({ children }: WidgetConfigProviderProps) {
           `[ConversationalAI] Cannot fetch config for agent ${agentId.value}: ${error?.message}`
         );
         if (!abort.signal.aborted) {
-          fetchedConfig.value = parsedOverrideConfig;
+          fetchedConfig.value = mergeWithFallbackConfig(parsedOverrideConfig);
         }
       });
 
@@ -210,6 +246,7 @@ export function WidgetConfigProvider({ children }: WidgetConfigProviderProps) {
   const color = useAttribute("color");
   const accentColor = useAttribute("accent-color");
   const accentPrimaryColor = useAttribute("accent-primary-color");
+  const businessMode = useAttribute("business-mode");
 
   const value = useComputed<WidgetConfig | null>(() => {
     if (!fetchedConfig.value) {
@@ -272,11 +309,16 @@ export function WidgetConfigProvider({ children }: WidgetConfigProviderProps) {
       accentPrimaryColor.value
     );
 
-    return {
+    const patchedBusinessMode =
+      parseBusinessMode(businessMode.value) ??
+      fetchedConfig.value.business_mode;
+
+    return applyBusinessModeToConfig({
       ...fetchedConfig.value,
       styles: patchedStyles,
       variant: parseVariant(patchedVariant),
       placement: patchedPlacement,
+      business_mode: patchedBusinessMode,
       leads_capture: patchedLeadsCapture,
       account_id: patchedAccountId,
       terms_key: patchedTermsKey,
@@ -290,7 +332,7 @@ export function WidgetConfigProvider({ children }: WidgetConfigProviderProps) {
       use_rtc: patchedUseRtc,
       show_agent_status: patchedShowAgentStatus,
       show_conversation_id: patchedShowConversationId,
-    };
+    });
   });
 
   if (!value.value) {
@@ -352,6 +394,23 @@ export function useTextInputEnabled() {
 export function useLeadsCaptureEnabled() {
   const config = useWidgetConfig();
   return useComputed(() => config.value.leads_capture ?? false);
+}
+
+export function useBusinessModeFeatures() {
+  const config = useWidgetConfig();
+  return useComputed(() =>
+    resolveBusinessModeFeatures(config.value.business_mode ?? "d2c")
+  );
+}
+
+export function useCartCommerceEnabled() {
+  const features = useBusinessModeFeatures();
+  return useComputed(() => features.value.cartSyncEnabled);
+}
+
+export function useCheckoutCommerceEnabled() {
+  const features = useBusinessModeFeatures();
+  return useComputed(() => features.value.checkoutEnabled);
 }
 
 export function useAccountId() {

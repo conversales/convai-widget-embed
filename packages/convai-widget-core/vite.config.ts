@@ -44,6 +44,7 @@ export default defineConfig({
             "src/index.test.ts",
             "src/widget/DismissButton.test.ts",
             "src/widget/UploadFileButton.test.ts",
+            "src/widget/BusinessModeProducts.test.ts",
           ],
         },
       },
@@ -55,6 +56,7 @@ export default defineConfig({
             "src/index.test.ts",
             "src/widget/DismissButton.test.ts",
             "src/widget/UploadFileButton.test.ts",
+            "src/widget/BusinessModeProducts.test.ts",
           ],
           browser: {
             enabled: true,
